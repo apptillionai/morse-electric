@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BackToTop } from "./back-to-top";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
 
@@ -23,6 +24,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
         {children}
       </main>
       <SiteFooter />
+      <BackToTop />
     </>
   );
 }
