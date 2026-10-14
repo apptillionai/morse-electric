@@ -19,7 +19,8 @@ export function PhoneLink({ className }: { className?: string }) {
 export function SiteHeader() {
   return (
     <>
-      <div className="bg-inverse text-[13px] text-on-inverse-muted">
+      {/* Focus target for the back-to-top button. */}
+      <div id="top" tabIndex={-1} className="bg-inverse text-[13px] text-on-inverse-muted outline-none">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-1.5 px-6 py-2">
           <span>
             <strong className="font-semibold text-on-inverse-accent">24/7 emergency motor service</strong> · Call{" "}
