@@ -1,0 +1,84 @@
+-- Row-level security and trigger checks for the catalog and request tables.
+-- Run with `supabase test db` against a local stack.
+begin;
+create extension if not exists pgtap;
+select plan(16);
+
+insert into public.categories (id, slug, name)
+values ('a1000000-0000-4000-8000-000000000001', 'electric-motors', 'Electric motors');
+
+insert into public.products (id, sku, slug, name, category_id, status)
+values
+  ('b1000000-0000-4000-8000-000000000001', 'TEST-ACTIVE', 'test-active', 'Active motor',
+   'a1000000-0000-4000-8000-000000000001', 'active'),
+  ('b1000000-0000-4000-8000-000000000002', 'TEST-DRAFT', 'test-draft', 'Draft motor',
+   'a1000000-0000-4000-8000-000000000001', 'draft');
+
+insert into public.product_images (product_id, storage_path)
+values
+  ('b1000000-0000-4000-8000-000000000001', 'active.jpg'),
+  ('b1000000-0000-4000-8000-000000000002', 'draft.jpg');
+
+insert into public.inventory (product_id, qty_on_hand)
+values ('b1000000-0000-4000-8000-000000000001', 3);
+
+select ok(
+  (select in_stock from public.products where sku = 'TEST-ACTIVE'),
+  'inventory insert marks the product in stock'
+);
+
+update public.inventory set qty_reserved = 3 where product_id = 'b1000000-0000-4000-8000-000000000001';
+select ok(
+  not (select in_stock from public.products where sku = 'TEST-ACTIVE'),
+  'reserving all stock marks the product out of stock'
+);
+update public.inventory set qty_reserved = 0 where product_id = 'b1000000-0000-4000-8000-000000000001';
+
+insert into public.quote_requests (name, email, details) values ('Pat', 'pat@example.invalid', 'Need a motor');
+insert into public.service_requests (equipment_type, name, email, phone, symptoms)
+values ('motor', 'Sam', 'sam@example.invalid', '5550102000', 'Tripping breaker');
+
+select ok(
+  (select reference ~ '^Q-\d{4,}$' from public.quote_requests where email = 'pat@example.invalid'),
+  'quote requests get a Q- reference'
+);
+select ok(
+  (select reference ~ '^SR-\d{4,}$' from public.service_requests where email = 'sam@example.invalid'),
+  'service requests get an SR- reference'
+);
+
+-- Anonymous visitors -------------------------------------------------------
+set local role anon;
+
+select is((select count(*)::int from public.products), 1, 'anon sees only active products');
+select is((select sku from public.products), 'TEST-ACTIVE', 'the visible product is the active one');
+select is((select count(*)::int from public.product_images), 1, 'anon sees only images of active products');
+select is((select count(*)::int from public.categories), 1, 'anon can read categories');
+select throws_ok('select * from public.inventory', '42501', null, 'anon cannot read inventory quantities');
+select throws_ok('select * from public.quote_requests', '42501', null, 'anon cannot read quote requests');
+select throws_ok('select * from public.service_requests', '42501', null, 'anon cannot read service requests');
+select throws_ok(
+  $$insert into public.quote_requests (name, email) values ('x', 'x@example.invalid')$$,
+  '42501', null, 'anon cannot insert quote requests directly'
+);
+select throws_ok(
+  $$update public.products set name = 'hacked'$$,
+  '42501', null, 'anon cannot modify products'
+);
+
+reset role;
+
+-- Signed-in customers get the same public view -----------------------------
+set local role authenticated;
+
+select is((select count(*)::int from public.products), 1, 'authenticated users see only active products');
+select throws_ok('select * from public.quote_requests', '42501', null, 'authenticated users cannot read quote requests');
+select throws_ok(
+  $$delete from public.categories$$,
+  '42501', null, 'authenticated users cannot delete categories'
+);
+
+reset role;
+
+select * from finish();
+rollback;

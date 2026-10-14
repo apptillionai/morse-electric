@@ -1,0 +1,9 @@
+# Minimal Supabase CLI config. Defaults apply for everything not listed.
+# Local stack: `supabase start` then `supabase db reset` applies migrations.
+project_id = "morse-electric"
+
+[api]
+schemas = ["public"]
+
+[db]
+major_version = 17

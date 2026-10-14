@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+/* Design tokens from the Morse design canvas. */
+@theme {
+  --color-ink: #0e1a26;
+  --color-ink-2: #1b2b3c;
+  --color-ink-line: #22344a;
+  --color-ink-border: #3a4e64;
+  --color-steel: #5b6b7b;
+  --color-muted: #4a5866;
+  --color-mist: #c9d2dc;
+
+  --color-copper: #b4501b;
+  --color-copper-dark: #9a4416;
+  --color-copper-deep: #6e2f0e;
+  --color-copper-bright: #e8833f;
+  --color-copper-wash: #f5ede6;
+
+  --color-ground: #f5f4f0;
+  --color-line: #d9d6ce;
+  --color-line-soft: #ece9e2;
+  --color-field: #b9b5ab;
+  --color-placeholder: #dcd8cf;
+
+  --color-ok: #2f6b3a;
+  --color-warn: #8a5a00;
+  --color-danger: #a12a1f;
+
+  --font-display: var(--font-barlow), "Arial Narrow", sans-serif;
+  --font-sans: var(--font-plex-sans), system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    background: var(--color-ground);
+    color: var(--color-ink);
+  }
+  a {
+    color: var(--color-copper-dark);
+  }
+  a:hover {
+    color: var(--color-copper-deep);
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-copper-bright);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+/* Uppercase condensed headline. */
+@utility display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+/* Small monospace kicker above section titles. */
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-copper-dark);
+}
+
+/* Hatched box standing in for photography that hasn't been shot yet. */
+@utility photo-placeholder {
+  background-color: var(--color-placeholder);
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgb(14 26 38 / 0.06) 0 10px,
+    transparent 10px 20px
+  );
+}
+
+@utility photo-placeholder-dark {
+  background-color: var(--color-ink-2);
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgb(255 255 255 / 0.05) 0 10px,
+    transparent 10px 20px
+  );
+}

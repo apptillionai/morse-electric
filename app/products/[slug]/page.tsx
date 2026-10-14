@@ -1,0 +1,254 @@
+import { Truck, Wrench } from "lucide-react";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { DemoCatalogBanner } from "@/components/catalog/demo-banner";
+import { PriceLabel, ProductPhoto, StockStatus, specLine } from "@/components/catalog/product-bits";
+import { PhoneLink } from "@/components/site/site-header";
+import { ButtonLink } from "@/components/ui/button";
+import { getCatalog } from "@/lib/catalog";
+import {
+  CONDITION_LABELS,
+  ENCLOSURE_LABELS,
+  POWER_LABELS,
+  type ProductDetail,
+} from "@/lib/catalog/types";
+import { SITE } from "@/lib/site";
+import { cn, formatHp, formatPrice } from "@/lib/utils";
+
+export async function generateMetadata(props: PageProps<"/products/[slug]">): Promise<Metadata> {
+  const { slug } = await props.params;
+  const product = await getCatalog().getProduct(slug);
+  if (!product) return {};
+  return {
+    title: `${product.name} (${CONDITION_LABELS[product.condition]})`,
+    description: product.description ?? `${product.name}. ${specLine(product)}. Part # ${product.sku}.`,
+    alternates: { canonical: `/products/${product.slug}` },
+  };
+}
+
+function specRows(p: ProductDetail): [string, string][] {
+  const rows: [string, string | null][] = [
+    ["Horsepower", p.hp !== null ? `${formatHp(p.hp)} HP` : null],
+    ["Speed", p.rpm !== null ? `${p.rpm} RPM` : null],
+    ["Frame", p.frame],
+    ["Enclosure", p.enclosure ? ENCLOSURE_LABELS[p.enclosure] : null],
+    ["Power", p.power ? POWER_LABELS[p.power] : null],
+    ["Voltage", p.voltage],
+    ["Condition", CONDITION_LABELS[p.condition]],
+    ["Weight", p.weightLb !== null ? `${p.weightLb} lb` : null],
+  ];
+  return [
+    ...rows.filter((r): r is [string, string] => r[1] !== null),
+    ...p.specs.map((s): [string, string] => [s.label, s.value]),
+  ];
+}
+
+const FULFILLMENT: Record<ProductDetail["shipClass"], string> = {
+  parcel: "Ships by ground parcel, or pick up at our shop.",
+  ltl: "Ships by LTL freight (we quote it for you), or pick up at our shop.",
+  pickup_only: "Available for pickup at our shop.",
+};
+
+function productJsonLd(p: ProductDetail) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: p.name,
+    sku: p.sku,
+    mpn: p.mfrPartNumber ?? undefined,
+    description: p.description ?? specLine(p),
+    image: p.images.map((i) => i.url),
+    brand: p.brand ? { "@type": "Brand", name: p.brand.name } : undefined,
+    itemCondition:
+      p.condition === "new" ? "https://schema.org/NewCondition"
+      : p.condition === "used_tested" ? "https://schema.org/UsedCondition"
+      : "https://schema.org/RefurbishedCondition",
+    offers:
+      p.priceCents !== null
+        ? {
+            "@type": "Offer",
+            price: (p.priceCents / 100).toFixed(2),
+            priceCurrency: "USD",
+            availability: p.inStock ? "https://schema.org/InStock" : "https://schema.org/BackOrder",
+            url: `${SITE.url}/products/${p.slug}`,
+          }
+        : undefined,
+  };
+}
+
+export default async function ProductPage(props: PageProps<"/products/[slug]">) {
+  const { slug } = await props.params;
+  const catalog = getCatalog();
+  const product = await catalog.getProduct(slug);
+  if (!product) notFound();
+  const category = (await catalog.listCategories()).find((c) => c.slug === product.categorySlug);
+  const quoteHref = `/quote?sku=${encodeURIComponent(product.sku)}`;
+  const core = formatPrice(product.coreChargeCents);
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd(product)).replace(/</g, "\\u003c") }}
+      />
+      <DemoCatalogBanner show={catalog.isDemo} />
+      <div className="mx-auto flex max-w-7xl flex-col gap-10 px-6 pt-7 pb-20">
+        <nav aria-label="Breadcrumb" className="flex flex-wrap gap-2 text-sm text-muted">
+          <Link href="/">Home</Link>
+          <span aria-hidden="true">/</span>
+          <Link href="/shop">Shop</Link>
+          {category && (
+            <>
+              <span aria-hidden="true">/</span>
+              <Link href={`/shop/${category.slug}`}>{category.name}</Link>
+            </>
+          )}
+          <span aria-hidden="true">/</span>
+          <span aria-current="page" className="font-medium text-ink">{product.sku}</span>
+        </nav>
+
+        <div className="flex flex-wrap items-start gap-12">
+          {/* Gallery */}
+          <div className="flex min-w-0 flex-[1_1_480px] flex-col gap-3">
+            <ProductPhoto
+              src={product.images[0]?.url ?? null}
+              alt={product.images[0]?.alt || product.name}
+              className="aspect-[4/3] rounded-md"
+              sizes="(min-width: 1024px) 50vw, 100vw"
+            />
+            {product.images.length > 1 && (
+              <div className="grid grid-cols-4 gap-3">
+                {product.images.slice(1, 5).map((image) => (
+                  <ProductPhoto key={image.url} src={image.url} alt={image.alt} className="aspect-square rounded" sizes="15vw" />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Buy box */}
+          <div className="flex min-w-0 flex-[1_1_440px] flex-col gap-5">
+            <div className="flex flex-col gap-2.5">
+              <span className="font-mono text-[13px] text-muted">
+                Part # {product.sku}
+                {product.mfrPartNumber && <> · Mfr # {product.mfrPartNumber}</>}
+              </span>
+              <h1 className="display text-[44px]">{product.name}</h1>
+              <span className="font-mono text-sm text-muted">{specLine(product)}</span>
+            </div>
+
+            {product.variants.length > 1 && (
+              <nav aria-label="Condition" className="flex flex-col gap-2.5">
+                <span className="font-semibold">Condition</span>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-2.5">
+                  {product.variants.map((v) => {
+                    const current = v.slug === product.slug;
+                    return (
+                      <Link
+                        key={v.slug}
+                        href={`/products/${v.slug}`}
+                        aria-current={current ? "page" : undefined}
+                        className={cn(
+                          "flex min-h-16 flex-col gap-0.5 rounded bg-white p-2.5 text-ink no-underline hover:text-ink",
+                          current ? "border-2 border-ink" : "border border-field hover:border-ink",
+                        )}
+                      >
+                        <strong className="text-sm">{CONDITION_LABELS[v.condition]}</strong>
+                        <span className="text-[13px] text-muted">
+                          {formatPrice(v.priceCents) ?? "Price on request"} · {v.inStock ? "In stock" : "Special order"}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </nav>
+            )}
+
+            <div className="flex flex-col gap-1">
+              <PriceLabel cents={product.priceCents} className={product.priceCents !== null ? "text-5xl" : "text-2xl"} />
+              {core && (
+                <span className="text-sm text-muted">
+                  Plus {core} refundable core charge, credited when your old unit comes back.
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1.5 rounded-md border border-line bg-white px-4 py-3.5">
+              <StockStatus inStock={product.inStock} className="text-[15px]" />
+              <span className="flex items-start gap-2 text-sm text-muted">
+                <Truck size={16} className="mt-0.5 flex-none" aria-hidden="true" />
+                {FULFILLMENT[product.shipClass]}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <ButtonLink href={quoteHref} size="lg" className="flex-[1_1_200px]">
+                {product.priceCents === null ? "Request price & availability" : "Request a quote"}
+              </ButtonLink>
+              {SITE.phoneHref && (
+                <ButtonLink href={SITE.phoneHref} variant="outline" size="lg">
+                  Call {SITE.phone}
+                </ButtonLink>
+              )}
+            </div>
+            <p className="text-sm text-muted">
+              Volume or account pricing? Mention it in your request, or call <PhoneLink />.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-3.5 rounded-md bg-ink p-4 text-white">
+              <Wrench size={26} className="text-copper-bright" aria-hidden="true" />
+              <span className="flex-[1_1_240px] text-sm leading-normal text-mist">
+                <strong className="text-white">Have the old unit?</strong> We’ll quote a repair next to this price so
+                you can compare.
+              </span>
+              <Link href="/service#request" className="font-semibold text-white hover:text-mist">
+                Compare repair →
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {product.description && (
+          <section className="max-w-3xl">
+            <h2 className="display mb-3 text-3xl">Overview</h2>
+            <p className="leading-relaxed text-muted">{product.description}</p>
+          </section>
+        )}
+
+        <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+          <section className="rounded-md border border-line bg-white p-7">
+            <h2 className="display mb-4 text-3xl">Specifications</h2>
+            <dl className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-x-12">
+              {specRows(product).map(([label, value]) => (
+                <div key={label} className="flex justify-between gap-4 border-b border-line-soft py-3">
+                  <dt className="text-muted">{label}</dt>
+                  <dd className="text-right font-mono text-sm">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+
+          <section className="flex flex-col gap-4 rounded-md border border-line bg-white p-7">
+            <h2 className="display text-3xl">Documents</h2>
+            {product.documents.length ? (
+              <ul className="flex flex-col gap-3">
+                {product.documents.map((d) => (
+                  <li key={d.url}>
+                    <a href={d.url} className="font-semibold">{d.label}</a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-muted">Spec sheets and drawings are available on request.</p>
+            )}
+            <h2 className="display mt-2 text-3xl">Warranty</h2>
+            <p className="text-sm leading-relaxed text-muted">
+              New units carry the manufacturer’s warranty. Remanufactured and exchange units carry Morse’s [XX]-month
+              shop warranty.
+            </p>
+          </section>
+        </div>
+      </div>
+    </>
+  );
+}
