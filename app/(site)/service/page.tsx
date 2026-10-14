@@ -2,7 +2,7 @@ import { Check } from "lucide-react";
 import type { Metadata } from "next";
 import { ServiceRequestForm } from "@/components/forms/service-request-form";
 import { ButtonLink } from "@/components/ui/button";
-import { SITE } from "@/lib/site";
+import { getBusiness } from "@/lib/site-settings";
 
 export const metadata: Metadata = {
   title: "Repair & service",
@@ -25,7 +25,8 @@ const FIELD = [
   ["Condition monitoring", "Vibration and thermal trending"],
 ] as const;
 
-export default function ServicePage() {
+export default async function ServicePage() {
+  const business = await getBusiness();
   return (
     <>
       <section className="bg-inverse text-on-inverse">
@@ -39,8 +40,8 @@ export default function ServicePage() {
             </p>
             <div className="flex flex-wrap gap-3">
               <ButtonLink href="#request" size="lg">Request a repair quote</ButtonLink>
-              {SITE.phoneHref && (
-                <ButtonLink href={SITE.phoneHref} variant="outline-light" size="lg">Emergency: {SITE.phone}</ButtonLink>
+              {business.phoneHref && (
+                <ButtonLink href={business.phoneHref} variant="outline-light" size="lg">Emergency: {business.phone}</ButtonLink>
               )}
             </div>
           </div>
@@ -75,7 +76,7 @@ export default function ServicePage() {
             </p>
             <ul className="flex flex-col gap-3.5 text-on-inverse-muted">
               {[
-                `Pickup available within ${SITE.serviceArea}`,
+                `Pickup available within ${business.serviceArea}`,
                 "Teardown report with photos",
                 "Repair vs. replace quote before we start",
                 "Job number to reference every step",
@@ -88,7 +89,7 @@ export default function ServicePage() {
             </ul>
           </div>
           <div className="min-w-0 flex-[999_1_560px] p-9">
-            <ServiceRequestForm phone={SITE.phone} />
+            <ServiceRequestForm phone={business.phone} />
           </div>
         </div>
       </section>
@@ -102,7 +103,7 @@ export default function ServicePage() {
             <span className="eyebrow">Field service</span>
             <h2 className="display text-[44px]">We come to you</h2>
             <p className="text-[17px] leading-relaxed text-fg-muted">
-              Service trucks cover {SITE.serviceArea}. Removal and installation, laser alignment, vibration analysis,
+              Service trucks cover {business.serviceArea}. Removal and installation, laser alignment, vibration analysis,
               thermography and motor circuit testing, on a call-out or a scheduled maintenance plan.
             </p>
             <div className="grid grid-cols-2 gap-3">

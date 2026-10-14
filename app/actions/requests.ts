@@ -15,7 +15,7 @@ import {
 } from "@/lib/requests/schemas";
 import { insertQuoteRequest, insertServiceRequest } from "@/lib/requests/store";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
-import { SITE } from "@/lib/site";
+import { getBusiness } from "@/lib/site-settings";
 
 const QUOTE_FIELDS = ["name", "company", "email", "phone", "sku", "quantity", "details"] as const;
 const SERVICE_FIELDS = [
@@ -33,7 +33,10 @@ const SERVICE_FIELDS = [
   "wantsReplacementQuote",
 ] as const;
 
-const UNAVAILABLE = `Online requests aren't available right now. Please call us at ${SITE.phone}.`;
+async function unavailable() {
+  const { callUs } = await getBusiness();
+  return `Online requests aren't available right now. Please ${callUs}.`;
+}
 
 /** Honeypot: a hidden "website" field real visitors never fill in. */
 function isBot(formData: FormData): boolean {
@@ -72,7 +75,7 @@ export async function submitQuoteRequest(_prev: RequestFormState, formData: Form
     if (!captcha.ok) return { status: "error", message: captcha.error, values };
   }
 
-  if (!isSupabaseAdminConfigured()) return { status: "error", message: UNAVAILABLE, values };
+  if (!isSupabaseAdminConfigured()) return { status: "error", message: await unavailable(), values };
 
   const input = parsed.data;
   try {
@@ -104,7 +107,7 @@ export async function submitQuoteRequest(_prev: RequestFormState, formData: Form
     return { status: "success", reference };
   } catch (error) {
     console.error("[quote]", error instanceof Error ? error.message : error);
-    return { status: "error", message: UNAVAILABLE, values };
+    return { status: "error", message: await unavailable(), values };
   }
 }
 
@@ -124,7 +127,7 @@ export async function submitServiceRequest(_prev: RequestFormState, formData: Fo
     if (!captcha.ok) return { status: "error", message: captcha.error, values };
   }
 
-  if (!isSupabaseAdminConfigured()) return { status: "error", message: UNAVAILABLE, values };
+  if (!isSupabaseAdminConfigured()) return { status: "error", message: await unavailable(), values };
 
   const input = parsed.data;
   try {
@@ -157,6 +160,6 @@ export async function submitServiceRequest(_prev: RequestFormState, formData: Fo
     return { status: "success", reference };
   } catch (error) {
     console.error("[service]", error instanceof Error ? error.message : error);
-    return { status: "error", message: UNAVAILABLE, values };
+    return { status: "error", message: await unavailable(), values };
   }
 }

@@ -2,6 +2,7 @@ import "server-only";
 
 import { Resend } from "resend";
 import { SITE } from "@/lib/site";
+import { getBusiness } from "@/lib/site-settings";
 
 export type EmailRow = [label: string, value: string | null];
 
@@ -46,6 +47,7 @@ export async function sendRequestEmails(email: RequestEmail): Promise<void> {
   }
 
   const resend = new Resend(apiKey);
+  const { callUs } = await getBusiness();
   const label = KIND_LABEL[email.kind];
   const body = renderRows(email.rows);
 
@@ -64,10 +66,10 @@ export async function sendRequestEmails(email: RequestEmail): Promise<void> {
       replyTo: staff.split(",")[0].trim(),
       subject: `We received your ${label.toLowerCase()} (${email.reference})`,
       html: `<p style="font:15px/1.5 sans-serif">Hi ${escapeHtml(email.customerName)},</p>
-<p style="font:15px/1.5 sans-serif">Thanks for contacting ${escapeHtml(SITE.name)}. Your reference is <strong>${escapeHtml(email.reference)}</strong>. A member of our team will follow up shortly. If it's urgent, call us at ${escapeHtml(SITE.phone)}.</p>
+<p style="font:15px/1.5 sans-serif">Thanks for contacting ${escapeHtml(SITE.name)}. Your reference is <strong>${escapeHtml(email.reference)}</strong>. A member of our team will follow up shortly. If it's urgent, ${escapeHtml(callUs)}.</p>
 <p style="font:15px/1.5 sans-serif">Here's what you sent:</p>${body.html}
 <p style="font:13px/1.5 sans-serif;color:#4A5866">${escapeHtml(SITE.name)} · <a href="${escapeHtml(SITE.url)}">${escapeHtml(new URL(SITE.url).host)}</a></p>`,
-      text: `Hi ${email.customerName},\n\nThanks for contacting ${SITE.name}. Your reference is ${email.reference}. A member of our team will follow up shortly. If it's urgent, call us at ${SITE.phone}.\n\n${body.text}\n\n${SITE.name} · ${SITE.url}`,
+      text: `Hi ${email.customerName},\n\nThanks for contacting ${SITE.name}. Your reference is ${email.reference}. A member of our team will follow up shortly. If it's urgent, ${callUs}.\n\n${body.text}\n\n${SITE.name} · ${SITE.url}`,
     }),
   ]);
 

@@ -1,22 +1,25 @@
 import { CircleUser, Search } from "lucide-react";
 import Link from "next/link";
 import { ButtonLink } from "@/components/ui/button";
-import { SITE } from "@/lib/site";
+import { getBusiness } from "@/lib/site-settings";
 import { Logo } from "./logo";
 import { NavLinks } from "./nav-links";
 import { ThemeChooser } from "./theme-chooser";
 
-export function PhoneLink({ className }: { className?: string }) {
-  return SITE.phoneHref ? (
-    <a href={SITE.phoneHref} className={className}>
-      {SITE.phone}
+/** The shop phone number from /admin/settings, linked when it looks dialable. */
+export async function PhoneLink({ className }: { className?: string }) {
+  const { phone, phoneHref } = await getBusiness();
+  return phoneHref ? (
+    <a href={phoneHref} className={className}>
+      {phone}
     </a>
   ) : (
-    <span className={className}>{SITE.phone}</span>
+    <span className={className}>{phone}</span>
   );
 }
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const business = await getBusiness();
   return (
     <>
       {/* Focus target for the back-to-top button. */}
@@ -28,7 +31,7 @@ export function SiteHeader() {
           </span>
           <span className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
             <span>
-              {SITE.hours} · {SITE.street}, {SITE.cityStateZip}
+              {business.hours} · {business.street}, {business.cityStateZip}
             </span>
             <Link href="/account" className="inline-flex items-center gap-1.5 font-semibold text-on-inverse no-underline hover:text-on-inverse-accent">
               <CircleUser size={16} aria-hidden="true" />

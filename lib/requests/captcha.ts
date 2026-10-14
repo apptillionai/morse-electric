@@ -1,6 +1,7 @@
 import "server-only";
 
 import { SITE } from "@/lib/site";
+import { getBusiness } from "@/lib/site-settings";
 
 const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
@@ -32,7 +33,8 @@ export async function verifyCaptcha(token: unknown, action: CaptchaAction): Prom
   if (!secret) {
     if (process.env.NODE_ENV !== "production") return { ok: true };
     console.error("[captcha] TURNSTILE_SECRET_KEY is not configured.");
-    return { ok: false, error: `Online requests are temporarily unavailable. Please call ${SITE.phone}.` };
+    const { callUs } = await getBusiness();
+    return { ok: false, error: `Online requests are temporarily unavailable. Please ${callUs}.` };
   }
 
   if (typeof token !== "string" || !token.trim() || token.length > 2048) {

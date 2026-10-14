@@ -14,6 +14,7 @@ import {
   type ProductDetail,
 } from "@/lib/catalog/types";
 import { SITE } from "@/lib/site";
+import { getBusiness } from "@/lib/site-settings";
 import { cn, formatHp, formatPrice } from "@/lib/utils";
 
 export async function generateMetadata(props: PageProps<"/products/[slug]">): Promise<Metadata> {
@@ -96,6 +97,7 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
   const category = (await catalog.listCategories()).find((c) => c.slug === product.categorySlug);
   const quoteHref = `/quote?sku=${encodeURIComponent(product.sku)}`;
   const core = formatPrice(product.coreChargeCents);
+  const business = await getBusiness();
 
   return (
     <>
@@ -196,9 +198,9 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
               <ButtonLink href={quoteHref} size="lg" className="flex-[1_1_200px]">
                 {product.priceCents === null ? "Request price & availability" : "Request a quote"}
               </ButtonLink>
-              {SITE.phoneHref && (
-                <ButtonLink href={SITE.phoneHref} variant="outline" size="lg">
-                  Call {SITE.phone}
+              {business.phoneHref && (
+                <ButtonLink href={business.phoneHref} variant="outline" size="lg">
+                  Call {business.phone}
                 </ButtonLink>
               )}
             </div>

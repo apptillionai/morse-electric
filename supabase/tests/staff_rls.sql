@@ -2,7 +2,7 @@
 -- catalog, stock, requests and catalog media. Run with `supabase test db`.
 begin;
 create extension if not exists pgtap;
-select plan(18);
+select plan(20);
 
 insert into auth.users (id, email) values
   ('c1000000-0000-4000-8000-000000000001', 'staff@example.invalid'),
@@ -36,8 +36,9 @@ select throws_ok(
   '42501', null, 'customers cannot upload catalog media'
 );
 select is((select default_theme from public.site_settings), 'light', 'anyone signed in can read the default theme');
-update public.site_settings set default_theme = 'dark';
+update public.site_settings set default_theme = 'dark', phone = '555-0000';
 reset role;
+select is((select phone from public.site_settings), null, 'non-staff cannot change business details');
 select is((select default_theme from public.site_settings), 'light', 'non-staff cannot change site settings');
 set local role authenticated;
 set local "request.jwt.claims" to '{"sub":"c1000000-0000-4000-8000-000000000002"}';
@@ -74,6 +75,7 @@ select lives_ok(
 );
 select lives_ok($$update public.site_settings set default_theme = 'system'$$, 'staff can change the default theme');
 select is((select default_theme from public.site_settings), 'system', 'default theme updated');
+select lives_ok($$update public.site_settings set phone = '(978) 555-0100', hours = 'Mon–Fri 7–4'$$, 'staff can change business details');
 
 reset role;
 

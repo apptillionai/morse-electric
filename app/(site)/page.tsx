@@ -8,15 +8,15 @@ import { ButtonLink } from "@/components/ui/button";
 import { getCatalog } from "@/lib/catalog";
 import { POWER_LABELS, POWER_SUPPLIES } from "@/lib/catalog/types";
 import { RPM_BANDS, type RpmBand } from "@/lib/catalog/filters";
-import { SITE } from "@/lib/site";
+import { getBusiness } from "@/lib/site-settings";
 
 // Prerendered, then refreshed so stock and featured items stay current.
 export const revalidate = 300;
 
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
-const REPAIR_STEPS = [
-  ["Drop off or schedule pickup", `Bring it in, or our truck collects it from your site within ${SITE.serviceArea}.`],
+const repairSteps = (serviceArea: string) => [
+  ["Drop off or schedule pickup", `Bring it in, or our truck collects it from your site within ${serviceArea}.`],
   ["Teardown & inspection", "Winding tests, bearing and shaft checks, and photos of every finding."],
   ["Approve a quote", "Repair or replace, side by side. Approve by phone, email or PO number."],
   ["Rebuild, rewind & load test", "New bearings, varnish, dynamic balancing and a full run-in test."],
@@ -46,6 +46,7 @@ const INDUSTRIES = [
 const fieldClass = "h-11 w-full rounded border border-edge-strong bg-surface px-3 text-[15px] font-normal";
 
 export default async function HomePage() {
+  const business = await getBusiness();
   const catalog = getCatalog();
   const [categories, featured] = await Promise.all([catalog.listCategories(), catalog.getFeatured(4)]);
 
@@ -180,7 +181,7 @@ export default async function HomePage() {
             </div>
           </div>
           <ol className="flex min-w-0 flex-[1_1_520px] flex-col">
-            {REPAIR_STEPS.map(([title, body], i) => (
+            {repairSteps(business.serviceArea).map(([title, body], i) => (
               <li key={title} className="flex gap-5 border-b border-edge py-5 last:border-b-0">
                 <span className="display w-12 flex-none text-[40px] text-accent-ink" aria-hidden="true">
                   {String(i + 1).padStart(2, "0")}

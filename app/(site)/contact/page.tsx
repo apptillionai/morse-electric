@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { PhoneLink } from "@/components/site/site-header";
 import { ButtonLink } from "@/components/ui/button";
-import { ADDRESS, DIRECTIONS_URL, SITE } from "@/lib/site";
+import { SITE } from "@/lib/site";
+import { getBusiness } from "@/lib/site-settings";
 
 export const metadata: Metadata = {
   title: "Contact & hours",
@@ -9,7 +10,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "/contact" },
 };
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const business = await getBusiness();
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10 px-6 pt-12 pb-20">
       <script
@@ -20,8 +22,9 @@ export default function ContactPage() {
             "@type": "LocalBusiness",
             name: SITE.legalName,
             url: SITE.url,
-            address: { "@type": "PostalAddress", ...ADDRESS },
-            ...(SITE.phoneHref ? { telephone: SITE.phone } : {}),
+            ...(business.postalAddress ? { address: { "@type": "PostalAddress", ...business.postalAddress } } : {}),
+            ...(business.phoneHref ? { telephone: business.phone } : {}),
+            ...(business.emailHref ? { email: business.email } : {}),
           }).replace(/</g, "\\u003c"),
         }}
       />
@@ -38,18 +41,22 @@ export default function ContactPage() {
         <section className="flex flex-col gap-2 rounded-md border border-edge bg-surface p-6">
           <h2 className="display text-2xl">Shop &amp; counter</h2>
           <address className="not-italic">
-            {SITE.street}
+            {business.street}
             <br />
-            {SITE.cityStateZip}
+            {business.cityStateZip}
           </address>
-          <a href={DIRECTIONS_URL} target="_blank" rel="noreferrer" className="text-sm font-semibold">
-            Get directions<span className="sr-only"> (opens Google Maps)</span>
-          </a>
-          <p className="text-sm text-fg-muted">{SITE.hours}</p>
+          {business.directionsUrl && (
+            <a href={business.directionsUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold">
+              Get directions<span className="sr-only"> (opens Google Maps)</span>
+            </a>
+          )}
+          <p className="text-sm text-fg-muted">{business.hours}</p>
         </section>
         <section className="flex flex-col gap-2 rounded-md border border-edge bg-surface p-6">
           <h2 className="display text-2xl">Email</h2>
-          <p className="font-semibold">{SITE.email}</p>
+          <p className="font-semibold">
+            {business.emailHref ? <a href={business.emailHref}>{business.email}</a> : business.email}
+          </p>
           <p className="text-sm text-fg-muted">For quotes, use the form so your request gets a reference number.</p>
         </section>
       </div>

@@ -3,6 +3,7 @@ import "server-only";
 import { Resend } from "resend";
 import { escapeHtml } from "@/lib/requests/email";
 import { SITE } from "@/lib/site";
+import { getBusiness } from "@/lib/site-settings";
 import type { AccountLinkType } from "./links";
 
 export function isAccountEmailConfigured(): boolean {
@@ -28,6 +29,7 @@ export async function sendAccountLinkEmail(to: string, name: string, url: string
   const from = process.env.MORSE_EMAIL_FROM;
   if (!apiKey || !from) return false;
   const copy = COPY[type];
+  const { callUs } = await getBusiness();
   const p = "font:15px/1.5 sans-serif";
   try {
     const { error } = await new Resend(apiKey).emails.send({
@@ -37,8 +39,8 @@ export async function sendAccountLinkEmail(to: string, name: string, url: string
       html: `<p style="${p}">Hi ${escapeHtml(name)},</p>
 <p style="${p}">${escapeHtml(copy.intro)}</p>
 <p style="${p}"><a href="${escapeHtml(url)}" style="display:inline-block;background:#B4501B;color:#fff;padding:12px 20px;border-radius:4px;text-decoration:none;font-weight:600">${escapeHtml(copy.button)}</a></p>
-<p style="${p};color:#4A5866">The link works once and expires soon. If it has expired, use “Forgot your password?” on the sign-in page or call us at ${escapeHtml(SITE.phone)}.</p>`,
-      text: `Hi ${name},\n\n${copy.intro}\n\n${copy.button}: ${url}\n\nThe link works once and expires soon. If it has expired, use "Forgot your password?" on the sign-in page or call us at ${SITE.phone}.`,
+<p style="${p};color:#4A5866">The link works once and expires soon. If it has expired, use “Forgot your password?” on the sign-in page or ${escapeHtml(callUs)}.</p>`,
+      text: `Hi ${name},\n\n${copy.intro}\n\n${copy.button}: ${url}\n\nThe link works once and expires soon. If it has expired, use "Forgot your password?" on the sign-in page or ${callUs}.`,
     });
     if (error) {
       console.error("[account email]", error.message);

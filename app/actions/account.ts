@@ -10,7 +10,7 @@ import { siteOrigin } from "@/lib/customers/origin";
 import { PROFILE_FIELDS, passwordSchema, profileSchema } from "@/lib/customers/schemas";
 import { verifyCaptcha } from "@/lib/requests/captcha";
 import { email as emailSchema, fieldErrors, formFields } from "@/lib/requests/schemas";
-import { SITE } from "@/lib/site";
+import { getBusiness } from "@/lib/site-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { createSessionClient } from "@/lib/supabase/server";
@@ -43,7 +43,8 @@ export async function signInCustomer(_prev: AccountFormState, formData: FormData
   if (customer) redirect(safeAccountPath(next));
   if (staff) redirect("/admin");
   await supabase.auth.signOut();
-  return { error: `There’s no customer account for this email. Call us at ${SITE.phone} to set one up.`, values };
+  const { callUs } = await getBusiness();
+  return { error: `There’s no customer account for this email. Please ${callUs} to set one up.`, values };
 }
 
 export async function signOutCustomer() {
@@ -103,7 +104,8 @@ export async function requestPasswordReset(_prev: AccountFormState, formData: Fo
   if (!captcha.ok) return { error: captcha.error, values: { email } };
 
   if (!isSupabaseAdminConfigured() || !isAccountEmailConfigured()) {
-    return { error: `Password reset by email isn’t available yet. Call us at ${SITE.phone} and we’ll send you a new sign-in link.`, values: { email } };
+    const { callUs } = await getBusiness();
+    return { error: `Password reset by email isn’t available yet. Please ${callUs} and we’ll send you a new sign-in link.`, values: { email } };
   }
 
   const admin = createAdminClient();
