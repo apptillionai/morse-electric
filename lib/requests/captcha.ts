@@ -4,7 +4,7 @@ import { SITE } from "@/lib/site";
 
 const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
-export type CaptchaAction = "quote" | "service";
+export type CaptchaAction = "quote" | "service" | "account";
 type CaptchaResult = { ok: true } | { ok: false; error: string };
 
 function allowedHostnames(): Set<string> {

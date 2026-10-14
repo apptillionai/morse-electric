@@ -11,25 +11,25 @@ export const EQUIPMENT_TYPES = {
 } as const;
 export type EquipmentType = keyof typeof EQUIPMENT_TYPES;
 
-const requiredText = (label: string, max: number) =>
+export const requiredText = (label: string, max: number) =>
   z
     .string()
     .trim()
     .min(1, `Enter your ${label}.`)
     .max(max, `Keep ${label} under ${max} characters.`);
 
-const optionalText = (max: number) =>
+export const optionalText = (max: number) =>
   z
     .string()
     .trim()
     .max(max, `Keep this under ${max} characters.`)
     .transform((v) => v || null);
 
-const email = z.string().trim().toLowerCase().pipe(z.email("Enter a valid email address.")).pipe(z.string().max(254));
+export const email = z.string().trim().toLowerCase().pipe(z.email("Enter a valid email address.")).pipe(z.string().max(254));
 
-const phonePattern = /^[\d\s()+.\-x]{7,40}$/i;
+export const phonePattern = /^[\d\s()+.\-x]{7,40}$/i;
 
-const checkbox = z
+export const checkbox = z
   .union([z.literal("on"), z.literal("true"), z.literal("")])
   .optional()
   .transform((v) => v === "on" || v === "true");

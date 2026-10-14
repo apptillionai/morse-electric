@@ -28,6 +28,7 @@ Every page has a **Light / Mid / Dark** theme switch in the top bar. The choice 
 | `/admin/import` | CSV import with a preview (new, updated, unchanged, problems by row) before anything is saved; template download |
 | `/admin/products/export` | The whole catalog as CSV, in the same format the importer reads |
 | `/admin/quotes`, `/admin/service` | Request inboxes with status and private staff notes |
+| `/admin/customers` | Invite customers, approve tax exemption, make new sign-in links, remove accounts |
 
 **Adding a staff member:** create the user in the Supabase dashboard (Authentication → Users → Add user), then run in the SQL editor:
 
@@ -37,6 +38,17 @@ select id, 'admin' from auth.users where email = 'person@example.com';
 ```
 
 Turn off public sign-ups (Authentication → Sign In / Providers) — staff accounts are only ever created by hand. Access is enforced by row-level security (`private.is_staff()`), and every admin page and server action re-checks it.
+
+## Customer accounts (`/account`)
+
+Invite-only: staff create the account at **/admin/customers → Invite customer**. That creates the login, links any earlier requests sent from the same email, and gives a one-time link (emailed when Resend is set up, otherwise copy it and send it yourself). The customer opens it, chooses a password and can then:
+
+- follow repair jobs through Received → Inspection → Quote → Repair → Testing → Ready
+- see their quote requests
+- keep company details, shipping and billing addresses on file, and upload a tax-exemption certificate (staff approve it)
+- get the quote and service forms filled in automatically; requests sent while signed in appear in their account
+
+Sign-in links use Supabase's **Email OTP expiration** (Authentication → Providers → Email; default 1 hour, max 24 hours). Staff can always make a new link from the customer's page. "Forgot your password?" needs Resend and Turnstile configured. Creating, re-linking and removing logins needs `SUPABASE_SECRET_KEY`.
 
 **CSV import rules:** rows match existing products by SKU (a new SKU creates a product); only the columns present in the file change; new products need a name and category. Common header names (`Part #`, `Horsepower`, `Qty on hand`, …) are recognised, and values like `$1,299`, `7½`, `TEFC` and `3 phase` are understood.
 

@@ -6,10 +6,16 @@ import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/admin/auth";
 import { safeAdminPath } from "@/lib/admin/paths";
 import { applyImportPlan, loadAllProducts, loadRefs, saveProduct, type ImportResult } from "@/lib/admin/catalog";
+import { inviteCustomer, newSignInToken, removeCustomer } from "@/lib/admin/customers";
 import { parseImport, planImport, type ImportPlan, type RowError } from "@/lib/admin/csv-import";
 import { parseProductForm, PRODUCT_FORM_FIELDS, type ProductFormField } from "@/lib/admin/product-form";
 import { QUOTE_STATUSES, SERVICE_STATUSES } from "@/lib/admin/requests";
-import { formFields } from "@/lib/requests/schemas";
+import { sendAccountLinkEmail } from "@/lib/customers/email";
+import { accountLinkUrl } from "@/lib/customers/links";
+import { siteOrigin } from "@/lib/customers/origin";
+import { INVITE_FIELDS, inviteSchema } from "@/lib/customers/schemas";
+import { fieldErrors, formFields } from "@/lib/requests/schemas";
+import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { createSessionClient } from "@/lib/supabase/server";
 
 // Every action re-checks staff access: server actions are reachable by POST
@@ -243,15 +249,29 @@ export interface TriageState {
   error?: string;
 }
 
+const NOTES_TABLE = {
+  quote_requests: { table: "quote_request_notes", key: "quote_request_id" },
+  service_requests: { table: "service_request_notes", key: "service_request_id" },
+} as const;
+
 async function triage(table: "quote_requests" | "service_requests", statuses: readonly string[], id: string, formData: FormData): Promise<TriageState> {
-  await requireStaff();
+  const staff = await requireStaff();
   const { status, staff_notes } = formFields(formData, ["status", "staff_notes"] as const);
   if (!statuses.includes(status)) return { error: "Choose a status." };
   if (staff_notes.length > 4000) return { error: "Notes must be 4,000 characters or fewer." };
   const supabase = await createSessionClient();
-  const { error } = await supabase.from(table).update({ status, staff_notes: staff_notes.trim() || null }).eq("id", id);
+  const { error } = await supabase.from(table).update({ status }).eq("id", id);
   if (error) return { error: error.message };
+
+  const notes = NOTES_TABLE[table];
+  const text = staff_notes.trim();
+  const { error: notesError } = text
+    ? await supabase.from(notes.table).upsert({ [notes.key]: id, notes: text, updated_by: staff.id, updated_at: new Date().toISOString() })
+    : await supabase.from(notes.table).delete().eq(notes.key, id);
+  if (notesError) return { error: `Status saved, but the notes weren’t: ${notesError.message}` };
+
   revalidatePath("/admin", "layout");
+  revalidatePath("/account", "layout");
   return { saved: true };
 }
 
@@ -261,4 +281,79 @@ export async function updateQuoteAction(id: string, _prev: TriageState, formData
 
 export async function updateServiceAction(id: string, _prev: TriageState, formData: FormData) {
   return triage("service_requests", SERVICE_STATUSES, id, formData);
+}
+
+// ---------------------------------------------------------------------------
+// Customers
+// ---------------------------------------------------------------------------
+
+const NO_SECRET_KEY = "Customer logins need SUPABASE_SECRET_KEY set in Vercel. Add it, redeploy and try again.";
+
+/** A one-time link to show staff (to copy and send) and, when email is set up, to email the customer. */
+export interface AccountLinkResult {
+  url: string;
+  emailed: boolean;
+  email: string;
+}
+
+export interface InviteState {
+  error?: string;
+  fieldErrors?: Record<string, string>;
+  values?: Record<string, string>;
+  done?: AccountLinkResult & { customerId: string; name: string; linked: number };
+}
+
+export async function inviteCustomerAction(_prev: InviteState, formData: FormData): Promise<InviteState> {
+  const staff = await requireStaff();
+  const values = formFields(formData, INVITE_FIELDS);
+  const parsed = inviteSchema.safeParse(values);
+  if (!parsed.success) return { error: "Check the highlighted fields.", fieldErrors: fieldErrors(parsed.error), values };
+  if (!isSupabaseAdminConfigured()) return { error: NO_SECRET_KEY, values };
+
+  const supabase = await createSessionClient();
+  const result = await inviteCustomer(supabase, staff.id, parsed.data);
+  if (!result.ok) return { error: result.error, fieldErrors: result.field ? { [result.field]: result.error } : undefined, values };
+
+  const url = accountLinkUrl(await siteOrigin(), result.tokenHash, "invite");
+  const emailed = await sendAccountLinkEmail(parsed.data.email, parsed.data.name, url, "invite");
+  revalidatePath("/admin", "layout");
+  return { done: { customerId: result.id, name: parsed.data.name, email: parsed.data.email, url, emailed, linked: result.linked } };
+}
+
+export interface LinkState {
+  error?: string;
+  link?: AccountLinkResult;
+}
+
+export async function newSignInLinkAction(customerId: string): Promise<LinkState> {
+  await requireStaff();
+  if (!isSupabaseAdminConfigured()) return { error: NO_SECRET_KEY };
+  const supabase = await createSessionClient();
+  const { data: customer } = await supabase.from("customers").select("email, name").eq("user_id", customerId).maybeSingle();
+  if (!customer) return { error: "Customer not found." };
+  const token = await newSignInToken(customer.email);
+  if ("error" in token) return { error: `Couldn’t create a link: ${token.error}` };
+  const url = accountLinkUrl(await siteOrigin(), token.tokenHash, "recovery");
+  const emailed = await sendAccountLinkEmail(customer.email, customer.name, url, "recovery");
+  return { link: { url, emailed, email: customer.email } };
+}
+
+export async function setTaxExemptAction(customerId: string, formData: FormData) {
+  await requireStaff();
+  const supabase = await createSessionClient();
+  const { error } = await supabase
+    .from("customers")
+    .update({ tax_exempt: formData.get("tax_exempt") === "on" })
+    .eq("user_id", customerId);
+  if (error) throw new Error(`Saving tax status failed: ${error.message}`);
+  revalidatePath(`/admin/customers/${customerId}`);
+  revalidatePath("/account", "layout");
+}
+
+export async function removeCustomerAction(customerId: string) {
+  await requireStaff();
+  if (!isSupabaseAdminConfigured()) throw new Error(NO_SECRET_KEY);
+  await removeCustomer(await createSessionClient(), customerId);
+  revalidatePath("/admin", "layout");
+  redirect("/admin/customers?removed=1");
 }

@@ -35,6 +35,9 @@ export default async function ServiceJobPage(props: PageProps<"/admin/service/[i
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <dl className="flex flex-col gap-3 rounded-md border border-edge bg-surface p-5">
           <Detail label="Name">{j.name}</Detail>
+          <Detail label="Account">
+            {j.customer_id ? <Link href={`/admin/customers/${j.customer_id}`}>Customer account</Link> : <span className="text-fg-muted">Sent without signing in</span>}
+          </Detail>
           <Detail label="Company">{j.company}</Detail>
           <Detail label="Email"><a href={`mailto:${j.email}?subject=${encodeURIComponent(`Your Morse Electric repair ${j.reference}`)}`}>{j.email}</a></Detail>
           <Detail label="Phone"><a href={`tel:${j.phone}`}>{j.phone}</a></Detail>

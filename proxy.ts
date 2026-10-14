@@ -1,15 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { ADMIN_PATH_HEADER } from "@/lib/admin/paths";
+import { REQUEST_PATH_HEADER } from "@/lib/admin/paths";
 
 /**
- * Keeps staff sessions fresh: refreshes the Supabase auth cookies on every
- * /admin request. Access control itself happens in the admin pages, server
+ * Keeps staff and customer sessions fresh: refreshes the Supabase auth
+ * cookies on every /admin and /account request. Access control itself happens in the admin pages, server
  * actions and row-level security, never here.
  */
 export async function proxy(request: NextRequest) {
-  // Tell the admin pages which URL was asked for, so sign-in can return to it.
-  request.headers.set(ADMIN_PATH_HEADER, request.nextUrl.pathname + request.nextUrl.search);
+  // Tell admin and account pages which URL was asked for, so sign-in can return to it.
+  request.headers.set(REQUEST_PATH_HEADER, request.nextUrl.pathname + request.nextUrl.search);
   let response = NextResponse.next({ request });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -33,5 +33,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/account/:path*", "/api/account/:path*"],
 };

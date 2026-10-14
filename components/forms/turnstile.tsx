@@ -23,7 +23,7 @@ declare global {
  * `resetSignal` should change after every submission: tokens are single-use,
  * so a failed attempt needs a fresh challenge.
  */
-export function Turnstile({ action, resetSignal }: { action: "quote" | "service"; resetSignal: unknown }) {
+export function Turnstile({ action, resetSignal }: { action: "quote" | "service" | "account"; resetSignal: unknown }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<string | null>(null);
   const [failed, setFailed] = useState(false);

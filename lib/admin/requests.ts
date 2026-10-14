@@ -43,7 +43,7 @@ export interface QuoteRequest {
   product_id: string | null;
   quantity: number | null;
   details: string | null;
-  staff_notes: string | null;
+  customer_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -64,7 +64,7 @@ export interface ServiceRequest {
   wants_pickup: boolean;
   is_rush: boolean;
   wants_replacement_quote: boolean;
-  staff_notes: string | null;
+  customer_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -80,10 +80,20 @@ export async function listQuotes(supabase: SupabaseClient, filter: InboxFilter) 
   return data as QuoteRequest[];
 }
 
+/** Staff notes live in their own staff-only table; embedded one-to-one, so an object or null. */
+type WithNotes<T> = T & { notes: { notes: string } | { notes: string }[] | null };
+const notesText = (n: WithNotes<object>["notes"]) => (Array.isArray(n) ? n[0]?.notes : n?.notes) ?? "";
+
 export async function getQuote(supabase: SupabaseClient, id: string) {
-  const { data, error } = await supabase.from("quote_requests").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await supabase
+    .from("quote_requests")
+    .select("*, notes:quote_request_notes(notes)")
+    .eq("id", id)
+    .maybeSingle();
   if (error) throw new Error(`Quote request: ${error.message}`);
-  return data as QuoteRequest | null;
+  if (!data) return null;
+  const { notes, ...quote } = data as WithNotes<QuoteRequest>;
+  return { ...quote, staff_notes: notesText(notes) };
 }
 
 export async function listServiceRequests(supabase: SupabaseClient, filter: InboxFilter) {
@@ -96,9 +106,15 @@ export async function listServiceRequests(supabase: SupabaseClient, filter: Inbo
 }
 
 export async function getServiceRequest(supabase: SupabaseClient, id: string) {
-  const { data, error } = await supabase.from("service_requests").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await supabase
+    .from("service_requests")
+    .select("*, notes:service_request_notes(notes)")
+    .eq("id", id)
+    .maybeSingle();
   if (error) throw new Error(`Service request: ${error.message}`);
-  return data as ServiceRequest | null;
+  if (!data) return null;
+  const { notes, ...job } = data as WithNotes<ServiceRequest>;
+  return { ...job, staff_notes: notesText(notes) };
 }
 
 export async function dashboardCounts(supabase: SupabaseClient) {

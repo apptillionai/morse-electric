@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/admin/import", label: "Import CSV" },
   { href: "/admin/quotes", label: "Quotes" },
   { href: "/admin/service", label: "Service" },
+  { href: "/admin/customers", label: "Customers" },
 ] as const;
 
 export function AdminNav() {

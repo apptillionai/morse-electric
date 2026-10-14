@@ -1,16 +1,19 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { submitServiceRequest } from "@/app/actions/requests";
 import { Button } from "@/components/ui/button";
 import { INITIAL_FORM_STATE } from "@/lib/requests/form-state";
 import { EQUIPMENT_TYPES, type EquipmentType } from "@/lib/requests/schemas";
+import { SignedInNote, useAccountPrefill } from "./account-prefill";
 import { CheckboxField, FormMessage, Honeypot, TextAreaField, TextField } from "./fields";
 import { RequestReceived } from "./request-received";
 import { Turnstile } from "./turnstile";
 
 export function ServiceRequestForm({ phone }: { phone: string }) {
   const [state, formAction, pending] = useActionState(submitServiceRequest, INITIAL_FORM_STATE);
+  const formRef = useRef<HTMLFormElement>(null);
+  const profile = useAccountPrefill(formRef);
   const v = state.values ?? {};
   const e = state.fieldErrors ?? {};
 
@@ -24,8 +27,9 @@ export function ServiceRequestForm({ phone }: { phone: string }) {
   }
 
   return (
-    <form action={formAction} className="relative flex flex-col gap-5" noValidate>
+    <form ref={formRef} action={formAction} className="relative flex flex-col gap-5" noValidate>
       <Honeypot />
+      <SignedInNote profile={profile} />
       <input type="hidden" name="source_path" value="/service" />
       <FormMessage message={state.status === "error" ? state.message : undefined} />
 

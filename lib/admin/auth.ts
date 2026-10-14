@@ -6,7 +6,7 @@ import { connection } from "next/server";
 import { cache } from "react";
 import { createSessionClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { ADMIN_PATH_HEADER, safeAdminPath } from "./paths";
+import { REQUEST_PATH_HEADER, safeAdminPath } from "./paths";
 
 export interface StaffUser {
   id: string;
@@ -36,7 +36,7 @@ export async function requireStaff(): Promise<StaffUser> {
   await connection(); // always per-request, even when Supabase isn't configured
   const staff = await getStaffUser();
   if (!staff) {
-    const next = safeAdminPath((await headers()).get(ADMIN_PATH_HEADER));
+    const next = safeAdminPath((await headers()).get(REQUEST_PATH_HEADER));
     redirect(next === "/admin" ? "/admin/login" : `/admin/login?next=${encodeURIComponent(next)}`);
   }
   return staff;

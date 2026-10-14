@@ -53,7 +53,8 @@ select lives_ok(
 );
 select ok((select in_stock from public.products where sku = 'ZZ-ACTIVE'), 'stock trigger runs for staff writes');
 select lives_ok(
-  $$update public.quote_requests set status = 'quoted', staff_notes = 'Called back' where id = 'd2000000-0000-4000-8000-000000000001'$$,
+  $$update public.quote_requests set status = 'quoted' where id = 'd2000000-0000-4000-8000-000000000001';
+    insert into public.quote_request_notes (quote_request_id, notes) values ('d2000000-0000-4000-8000-000000000001', 'Called back')$$,
   'staff can triage quote requests'
 );
 select is((select status::text from public.quote_requests where id = 'd2000000-0000-4000-8000-000000000001'), 'quoted', 'quote status updated');

@@ -2,6 +2,7 @@
 
 import { after } from "next/server";
 import { getCatalog } from "@/lib/catalog";
+import { getSignedInUser } from "@/lib/customers/account";
 import { verifyCaptcha } from "@/lib/requests/captcha";
 import { sendRequestEmails } from "@/lib/requests/email";
 import type { RequestFormState } from "@/lib/requests/form-state";
@@ -40,6 +41,16 @@ function isBot(formData: FormData): boolean {
   return typeof trap === "string" && trap.trim() !== "";
 }
 
+/** The signed-in customer's id, so the request shows up in their account. Never blocks a request. */
+async function currentCustomerId(): Promise<string | null> {
+  try {
+    const user = await getSignedInUser();
+    return user?.customer ? user.id : null;
+  } catch {
+    return null;
+  }
+}
+
 function sourcePath(formData: FormData): string | null {
   const value = formData.get("source_path");
   return typeof value === "string" && value.startsWith("/") ? value.slice(0, 500) : null;
@@ -62,7 +73,11 @@ export async function submitQuoteRequest(_prev: RequestFormState, formData: Form
   const input = parsed.data;
   try {
     const product = input.sku ? await getCatalog().getProductBySku(input.sku) : null;
-    const reference = await insertQuoteRequest(input, { productId: product?.id ?? null, sourcePath: sourcePath(formData) });
+    const reference = await insertQuoteRequest(input, {
+      productId: product?.id ?? null,
+      sourcePath: sourcePath(formData),
+      customerId: await currentCustomerId(),
+    });
 
     after(() =>
       sendRequestEmails({
@@ -105,7 +120,7 @@ export async function submitServiceRequest(_prev: RequestFormState, formData: Fo
 
   const input = parsed.data;
   try {
-    const reference = await insertServiceRequest(input, { sourcePath: sourcePath(formData) });
+    const reference = await insertServiceRequest(input, { sourcePath: sourcePath(formData), customerId: await currentCustomerId() });
     const yes = (flag: boolean) => (flag ? "Yes" : null);
 
     after(() =>

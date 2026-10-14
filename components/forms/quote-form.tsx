@@ -1,15 +1,18 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { submitQuoteRequest } from "@/app/actions/requests";
 import { Button } from "@/components/ui/button";
 import { INITIAL_FORM_STATE } from "@/lib/requests/form-state";
+import { SignedInNote, useAccountPrefill } from "./account-prefill";
 import { FormMessage, Honeypot, TextAreaField, TextField } from "./fields";
 import { RequestReceived } from "./request-received";
 import { Turnstile } from "./turnstile";
 
 export function QuoteForm({ product }: { product: { sku: string; name: string } | null }) {
   const [state, formAction, pending] = useActionState(submitQuoteRequest, INITIAL_FORM_STATE);
+  const formRef = useRef<HTMLFormElement>(null);
+  const profile = useAccountPrefill(formRef);
   const v = state.values ?? {};
   const e = state.fieldErrors ?? {};
 
@@ -23,8 +26,9 @@ export function QuoteForm({ product }: { product: { sku: string; name: string } 
   }
 
   return (
-    <form action={formAction} className="relative flex flex-col gap-5" noValidate>
+    <form ref={formRef} action={formAction} className="relative flex flex-col gap-5" noValidate>
       <Honeypot />
+      <SignedInNote profile={profile} />
       <input type="hidden" name="source_path" value={product ? `/quote?sku=${product.sku}` : "/quote"} />
       <FormMessage message={state.status === "error" ? state.message : undefined} />
 

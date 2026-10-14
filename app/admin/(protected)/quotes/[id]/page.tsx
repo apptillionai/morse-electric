@@ -24,6 +24,9 @@ export default async function QuotePage(props: PageProps<"/admin/quotes/[id]">) 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <dl className="flex flex-col gap-3 rounded-md border border-edge bg-surface p-5">
           <Detail label="Name">{q.name}</Detail>
+          <Detail label="Account">
+            {q.customer_id ? <Link href={`/admin/customers/${q.customer_id}`}>Customer account</Link> : <span className="text-fg-muted">Sent without signing in</span>}
+          </Detail>
           <Detail label="Company">{q.company}</Detail>
           <Detail label="Email"><a href={`mailto:${q.email}?subject=${encodeURIComponent(`Your Morse Electric quote ${q.reference}`)}`}>{q.email}</a></Detail>
           <Detail label="Phone">{q.phone && <a href={`tel:${q.phone}`}>{q.phone}</a>}</Detail>

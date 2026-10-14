@@ -1,4 +1,5 @@
-import { Search } from "lucide-react";
+import { CircleUser, Search } from "lucide-react";
+import Link from "next/link";
 import { ButtonLink } from "@/components/ui/button";
 import { SITE } from "@/lib/site";
 import { Logo } from "./logo";
@@ -28,6 +29,10 @@ export function SiteHeader() {
             <span>
               {SITE.hours} · {SITE.street}, {SITE.cityStateZip}
             </span>
+            <Link href="/account" className="inline-flex items-center gap-1.5 font-semibold text-on-inverse no-underline hover:text-on-inverse-accent">
+              <CircleUser size={16} aria-hidden="true" />
+              Customer login
+            </Link>
             <ThemeChooser />
           </span>
         </div>
