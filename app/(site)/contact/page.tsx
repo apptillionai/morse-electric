@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { PhoneLink } from "@/components/site/site-header";
 import { ButtonLink } from "@/components/ui/button";
-import { SITE } from "@/lib/site";
+import { ADDRESS, DIRECTIONS_URL, SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Contact & hours",
@@ -12,6 +12,19 @@ export const metadata: Metadata = {
 export default function ContactPage() {
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-10 px-6 pt-12 pb-20">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "LocalBusiness",
+            name: SITE.legalName,
+            url: SITE.url,
+            address: { "@type": "PostalAddress", ...ADDRESS },
+            ...(SITE.phoneHref ? { telephone: SITE.phone } : {}),
+          }).replace(/</g, "\\u003c"),
+        }}
+      />
       <div className="flex flex-col gap-3">
         <span className="eyebrow">Contact</span>
         <h1 className="display text-5xl">Call, visit or send a request</h1>
@@ -29,6 +42,9 @@ export default function ContactPage() {
             <br />
             {SITE.cityStateZip}
           </address>
+          <a href={DIRECTIONS_URL} target="_blank" rel="noreferrer" className="text-sm font-semibold">
+            Get directions<span className="sr-only"> (opens Google Maps)</span>
+          </a>
           <p className="text-sm text-fg-muted">{SITE.hours}</p>
         </section>
         <section className="flex flex-col gap-2 rounded-md border border-edge bg-surface p-6">

@@ -87,7 +87,7 @@ For a local stack, run `supabase start`, then `supabase db reset` and `supabase 
 
 ## Placeholders to replace
 
-Business details (phone, address, hours, service area, email) come from `NEXT_PUBLIC_MORSE_*` env vars and render as `[PHONE]`-style placeholders until set. We still need from Morse:
+Business details come from `lib/site.ts` (overridable with `NEXT_PUBLIC_MORSE_*` env vars). Confirmed: the shop address, 380 East Broadway, Gardner, MA 01440. Phone, email, hours and service area still render as `[PHONE]`-style placeholders until confirmed. We still need from Morse:
 - the real parts list (SKU, specs, condition, price, stock)
 - product photography
 - warranty terms (currently `[XX]-month`)
