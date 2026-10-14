@@ -29,10 +29,10 @@ export function QuoteForm({ product }: { product: { sku: string; name: string } 
       <FormMessage message={state.status === "error" ? state.message : undefined} />
 
       {product ? (
-        <div className="rounded border border-line bg-ground px-4 py-3">
-          <span className="text-[13px] text-muted">Quoting</span>
+        <div className="rounded border border-edge bg-page px-4 py-3">
+          <span className="text-[13px] text-fg-muted">Quoting</span>
           <p className="font-semibold">{product.name}</p>
-          <span className="font-mono text-[13px] text-muted">Part # {product.sku}</span>
+          <span className="font-mono text-[13px] text-fg-muted">Part # {product.sku}</span>
           <input type="hidden" name="sku" value={product.sku} />
         </div>
       ) : (

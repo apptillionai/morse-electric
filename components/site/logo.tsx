@@ -23,12 +23,12 @@ export function MorseMark({ className }: { className?: string }) {
 
 export function Logo() {
   return (
-    <Link href="/" className="flex flex-col gap-1.5 text-ink no-underline hover:text-ink">
+    <Link href="/" className="flex flex-col gap-1.5 text-fg no-underline hover:text-fg">
       <span className="font-display text-[32px] leading-none font-bold tracking-[0.04em]">
         MORSE{" "}
-        <span className="text-[15px] font-medium tracking-[0.14em] text-muted">ELECTRIC MOTOR CO.</span>
+        <span className="text-[15px] font-medium tracking-[0.14em] text-fg-muted">ELECTRIC MOTOR CO.</span>
       </span>
-      <MorseMark className="text-copper" />
+      <MorseMark className="text-accent-ink" />
       <span className="sr-only">Morse Electric Motor Co. home</span>
     </Link>
   );

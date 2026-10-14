@@ -19,7 +19,7 @@ export function StockStatus({ inStock, className }: { inStock: boolean; classNam
 
 export function ConditionBadge({ product }: { product: Pick<ProductSummary, "condition"> }) {
   return (
-    <span className="rounded-sm bg-ink px-2 py-1 text-xs font-semibold text-white">
+    <span className="rounded-sm bg-bold px-2 py-1 text-xs font-semibold text-on-bold">
       {CONDITION_LABELS[product.condition]}
     </span>
   );
@@ -30,7 +30,7 @@ export function PriceLabel({ cents, className }: { cents: number | null; classNa
   return price ? (
     <span className={cn("font-display text-[28px] font-bold normal-case", className)}>{price}</span>
   ) : (
-    <span className={cn("text-[15px] font-semibold text-ink", className)}>Price on request</span>
+    <span className={cn("text-[15px] font-semibold text-fg", className)}>Price on request</span>
   );
 }
 
@@ -62,13 +62,13 @@ export function ProductPhoto({
 }) {
   if (src) {
     return (
-      <div className={cn("relative overflow-hidden bg-white", className)}>
+      <div className={cn("relative overflow-hidden bg-surface", className)}>
         <Image src={src} alt={alt} fill sizes={sizes} className="object-contain" />
       </div>
     );
   }
   return (
-    <div className={cn("photo-placeholder flex items-center justify-center text-[13px] text-muted", className)}>
+    <div className={cn("photo-placeholder flex items-center justify-center text-[13px] text-fg-muted", className)}>
       {label}
     </div>
   );

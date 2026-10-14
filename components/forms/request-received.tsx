@@ -7,11 +7,11 @@ export function RequestReceived({ title, reference, children }: { title: string;
       <CircleCheck size={48} className="text-ok" aria-hidden="true" />
       <h3 className="display text-[34px]">{title}</h3>
       {reference && reference !== "received" && (
-        <p className="text-muted">
-          Your reference number is <strong className="font-mono text-ink">{reference}</strong>.
+        <p className="text-fg-muted">
+          Your reference number is <strong className="font-mono text-fg">{reference}</strong>.
         </p>
       )}
-      <div className="max-w-xl leading-relaxed text-muted">{children}</div>
+      <div className="max-w-xl leading-relaxed text-fg-muted">{children}</div>
     </div>
   );
 }

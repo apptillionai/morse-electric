@@ -40,7 +40,7 @@ const INDUSTRIES = [
   "Oil & gas",
 ];
 
-const fieldClass = "h-11 w-full rounded border border-field bg-white px-3 text-[15px] font-normal";
+const fieldClass = "h-11 w-full rounded border border-edge-strong bg-surface px-3 text-[15px] font-normal";
 
 export default async function HomePage() {
   const catalog = getCatalog();
@@ -51,14 +51,14 @@ export default async function HomePage() {
       <DemoCatalogBanner show={catalog.isDemo} />
 
       {/* Hero */}
-      <section className="bg-ink text-white">
+      <section className="bg-inverse text-on-inverse">
         <div className="mx-auto flex max-w-7xl flex-wrap items-stretch gap-12 px-6 pt-18 pb-16">
           <div className="flex min-w-0 flex-[1_1_520px] flex-col justify-center gap-6">
-            <span className="eyebrow text-copper-bright">Sales · Repair · Rewind · Field service</span>
+            <span className="eyebrow text-on-inverse-accent">Sales · Repair · Rewind · Field service</span>
             <h1 className="display text-[clamp(44px,6vw,80px)] leading-[0.95]">
               Motors, pumps &amp; blowers: sold, rebuilt and back on line fast.
             </h1>
-            <p className="max-w-xl text-lg leading-relaxed text-mist">
+            <p className="max-w-xl text-lg leading-relaxed text-on-inverse-muted">
               New and remanufactured electric motors, pumps, blowers, vacuum pumps, starters and alternators, in stock
               and ready to go, or repaired in our shop.
             </p>
@@ -69,10 +69,10 @@ export default async function HomePage() {
           </div>
 
           {/* Part finder: a GET form into the filtered shop. */}
-          <form action="/shop" className="flex min-w-0 flex-[1_1_400px] flex-col gap-4 rounded-md bg-white p-7 text-ink">
+          <form action="/shop" className="flex min-w-0 flex-[1_1_400px] flex-col gap-4 rounded-md bg-surface p-7 text-fg">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <h2 className="display text-[28px]">Find a replacement</h2>
-              <span className="text-[13px] text-muted">Match by nameplate</span>
+              <span className="text-[13px] text-fg-muted">Match by nameplate</span>
             </div>
             <div className="grid grid-cols-2 gap-3.5">
               <label className="col-span-2 flex flex-col gap-1.5 text-[13px] font-semibold">
@@ -110,10 +110,10 @@ export default async function HomePage() {
                 </select>
               </label>
             </div>
-            <button type="submit" className="h-12 rounded bg-ink font-semibold text-white hover:bg-ink-2">
+            <button type="submit" className="h-12 rounded bg-bold font-semibold text-on-bold hover:bg-bold-hover">
               Show matching parts
             </button>
-            <p className="text-[13px] text-muted">
+            <p className="text-[13px] text-fg-muted">
               Can’t read the nameplate? <Link href="/quote">Send us the details</Link> and we’ll identify it.
             </p>
           </form>
@@ -129,12 +129,12 @@ export default async function HomePage() {
           </div>
           <Link href="/shop" className="font-semibold">Browse the full catalog →</Link>
         </div>
-        <div className="grid gap-px overflow-hidden rounded-md border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-px overflow-hidden rounded-md border border-edge bg-edge sm:grid-cols-2 lg:grid-cols-3">
           {categories.map((c) => (
-            <div key={c.slug} className="flex flex-col gap-3.5 bg-white p-7">
-              <CategoryIcon slug={c.slug} className="text-copper" />
+            <div key={c.slug} className="flex flex-col gap-3.5 bg-surface p-7">
+              <CategoryIcon slug={c.slug} className="text-accent-ink" />
               <h3 className="display text-[28px]">{c.name}</h3>
-              <p className="leading-normal text-muted">{c.description}</p>
+              <p className="leading-normal text-fg-muted">{c.description}</p>
               <div className="mt-auto flex gap-5 font-semibold">
                 <Link href={`/shop/${c.slug}`}>Shop {c.name.toLowerCase()}</Link>
                 <Link href="/service#request">Repair</Link>
@@ -163,28 +163,28 @@ export default async function HomePage() {
       )}
 
       {/* Repair or replace */}
-      <section className="border-y border-line bg-white">
+      <section className="border-y border-edge bg-surface">
         <div className="mx-auto flex max-w-7xl flex-wrap gap-12 px-6 py-20">
           <div className="flex min-w-0 flex-[1_1_380px] flex-col gap-5">
             <span className="eyebrow">Repair or replace?</span>
             <h2 className="display text-5xl">We’ll tell you which costs less.</h2>
-            <p className="text-[17px] leading-relaxed text-muted">
+            <p className="text-[17px] leading-relaxed text-fg-muted">
               Every unit that comes through our door gets a teardown report and a side-by-side quote: repair it, or
               replace it with a new or remanufactured unit from stock. You decide.
             </p>
-            <div className="photo-placeholder flex h-64 items-center justify-center rounded-md text-[13px] text-muted">
+            <div className="photo-placeholder flex h-64 items-center justify-center rounded-md text-[13px] text-fg-muted">
               Photo: technician on the motor test stand
             </div>
           </div>
           <ol className="flex min-w-0 flex-[1_1_520px] flex-col">
             {REPAIR_STEPS.map(([title, body], i) => (
-              <li key={title} className="flex gap-5 border-b border-line py-5 last:border-b-0">
-                <span className="display w-12 flex-none text-[40px] text-copper" aria-hidden="true">
+              <li key={title} className="flex gap-5 border-b border-edge py-5 last:border-b-0">
+                <span className="display w-12 flex-none text-[40px] text-accent-ink" aria-hidden="true">
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <div className="flex flex-col gap-1">
                   <strong className="text-lg">{title}</strong>
-                  <span className="leading-normal text-muted">{body}</span>
+                  <span className="leading-normal text-fg-muted">{body}</span>
                 </div>
               </li>
             ))}
@@ -206,22 +206,22 @@ export default async function HomePage() {
             <Link
               key={title}
               href={href}
-              className="flex flex-col gap-2 rounded-md border border-line bg-white p-6 text-ink no-underline hover:border-ink hover:text-ink"
+              className="flex flex-col gap-2 rounded-md border border-edge bg-surface p-6 text-fg no-underline hover:border-bold hover:text-fg"
             >
               <strong className="text-lg">{title}</strong>
-              <span className="leading-normal text-muted">{body}</span>
+              <span className="leading-normal text-fg-muted">{body}</span>
             </Link>
           ))}
         </div>
       </section>
 
       {/* Industries */}
-      <section className="bg-ink text-white">
+      <section className="bg-inverse text-on-inverse">
         <div className="mx-auto flex max-w-7xl flex-col gap-7 px-6 py-18">
           <h2 className="display text-[40px]">Industries we keep moving</h2>
           <ul className="flex flex-wrap gap-3">
             {INDUSTRIES.map((name) => (
-              <li key={name} className="rounded-full border border-ink-border px-5 py-3 font-medium">{name}</li>
+              <li key={name} className="rounded-full border border-inverse-edge px-5 py-3 font-medium">{name}</li>
             ))}
           </ul>
         </div>
@@ -229,10 +229,10 @@ export default async function HomePage() {
 
       {/* Emergency */}
       <section className="mx-auto max-w-7xl px-6 py-20">
-        <div className="flex flex-wrap items-center justify-between gap-8 rounded-md border border-line bg-white p-10">
+        <div className="flex flex-wrap items-center justify-between gap-8 rounded-md border border-edge bg-surface p-10">
           <div className="flex flex-[1_1_420px] flex-col gap-2.5">
             <h2 className="display text-[44px]">Motor down right now?</h2>
-            <p className="text-[17px] leading-normal text-muted">
+            <p className="text-[17px] leading-normal text-fg-muted">
               Our emergency line is answered around the clock: <PhoneLink className="font-semibold" />. We’ll check
               stock for a replacement while we schedule your repair.
             </p>

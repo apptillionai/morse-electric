@@ -1,31 +1,142 @@
 @import "tailwindcss";
 
-/* Design tokens from the Morse design canvas. */
+/*
+ * Themes. Every colour in the UI comes from these semantic tokens, set per
+ * theme on <html data-theme="light|mid|dark"> (see components/site/theme.tsx).
+ * __tests__/theme-contrast.test.ts parses this file and checks WCAG contrast
+ * for every text/background pairing in every theme, so add new tokens there.
+ *
+ *   page / surface      page background / cards, inputs, header
+ *   fg / fg-muted       body text / secondary text on page or surface
+ *   edge*               borders: decorative, hairline, form controls (3:1)
+ *   accent              primary buttons (on-accent text); accent-ink = links
+ *   bold                high-contrast fills: dark buttons, badges, selected pills
+ *   inverse             always-dark bands: utility bar, hero, footer, callouts
+ */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --page: #f5f4f0;
+  --surface: #ffffff;
+  --fg: #0e1a26;
+  --fg-muted: #4a5866;
+  --edge: #d9d6ce;
+  --edge-soft: #ece9e2;
+  --edge-strong: #857f74;
+  --accent: #b4501b;
+  --accent-hover: #9a4416;
+  --on-accent: #ffffff;
+  --accent-ink: #9a4416;
+  --accent-wash: #f5ede6;
+  --bold: #0e1a26;
+  --bold-hover: #22344a;
+  --on-bold: #ffffff;
+  --inverse: #0e1a26;
+  --on-inverse: #ffffff;
+  --on-inverse-muted: #c9d2dc;
+  --on-inverse-accent: #e8833f;
+  --inverse-edge: #22344a;
+  --inverse-edge-strong: #7a8a9b;
+  --ok: #2f6b3a;
+  --warn: #8a5a00;
+  --danger: #a12a1f;
+  --focus: #b4501b;
+  --placeholder: #dcd8cf;
+  --placeholder-stripe: rgb(14 26 38 / 0.06);
+}
+
+[data-theme="mid"] {
+  color-scheme: dark;
+  --page: #36424f;
+  --surface: #425061;
+  --fg: #f5f7fa;
+  --fg-muted: #d3dbe4;
+  --edge: #566578;
+  --edge-soft: #4b5969;
+  --edge-strong: #9aa8b8;
+  --accent: #f59b5f;
+  --accent-hover: #ffb07a;
+  --on-accent: #0e1a26;
+  --accent-ink: #ffb98a;
+  --accent-wash: #4d3d33;
+  --bold: #f5f7fa;
+  --bold-hover: #dde3ea;
+  --on-bold: #0e1a26;
+  --inverse: #1f2934;
+  --on-inverse: #ffffff;
+  --on-inverse-muted: #c9d2dc;
+  --on-inverse-accent: #f0955a;
+  --inverse-edge: #3a4756;
+  --inverse-edge-strong: #8392a3;
+  --ok: #a3e0b0;
+  --warn: #f3cd7f;
+  --danger: #ffb3a6;
+  --focus: #ffb98a;
+  --placeholder: #4b5969;
+  --placeholder-stripe: rgb(255 255 255 / 0.05);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0b1219;
+  --surface: #151f2a;
+  --fg: #e8edf2;
+  --fg-muted: #a9b6c3;
+  --edge: #2a3746;
+  --edge-soft: #1f2b38;
+  --edge-strong: #6f7e8f;
+  --accent: #b4501b;
+  --accent-hover: #9a4416;
+  --on-accent: #ffffff;
+  --accent-ink: #f0955a;
+  --accent-wash: #2e1f16;
+  --bold: #e8edf2;
+  --bold-hover: #ffffff;
+  --on-bold: #0e1a26;
+  --inverse: #05090d;
+  --on-inverse: #ffffff;
+  --on-inverse-muted: #b8c4d0;
+  --on-inverse-accent: #f0955a;
+  --inverse-edge: #1f2b38;
+  --inverse-edge-strong: #6f7e8f;
+  --ok: #7bc98a;
+  --warn: #e8b85a;
+  --danger: #ff8a7a;
+  --focus: #f0955a;
+  --placeholder: #1f2b38;
+  --placeholder-stripe: rgb(255 255 255 / 0.04);
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-edge: var(--edge);
+  --color-edge-soft: var(--edge-soft);
+  --color-edge-strong: var(--edge-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-on-accent: var(--on-accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-wash: var(--accent-wash);
+  --color-bold: var(--bold);
+  --color-bold-hover: var(--bold-hover);
+  --color-on-bold: var(--on-bold);
+  --color-inverse: var(--inverse);
+  --color-on-inverse: var(--on-inverse);
+  --color-on-inverse-muted: var(--on-inverse-muted);
+  --color-on-inverse-accent: var(--on-inverse-accent);
+  --color-inverse-edge: var(--inverse-edge);
+  --color-inverse-edge-strong: var(--inverse-edge-strong);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-focus: var(--focus);
+}
+
 @theme {
-  --color-ink: #0e1a26;
-  --color-ink-2: #1b2b3c;
-  --color-ink-line: #22344a;
-  --color-ink-border: #3a4e64;
-  --color-steel: #5b6b7b;
-  --color-muted: #4a5866;
-  --color-mist: #c9d2dc;
-
-  --color-copper: #b4501b;
-  --color-copper-dark: #9a4416;
-  --color-copper-deep: #6e2f0e;
-  --color-copper-bright: #e8833f;
-  --color-copper-wash: #f5ede6;
-
-  --color-ground: #f5f4f0;
-  --color-line: #d9d6ce;
-  --color-line-soft: #ece9e2;
-  --color-field: #b9b5ab;
-  --color-placeholder: #dcd8cf;
-
-  --color-ok: #2f6b3a;
-  --color-warn: #8a5a00;
-  --color-danger: #a12a1f;
-
   --font-display: var(--font-barlow), "Arial Narrow", sans-serif;
   --font-sans: var(--font-plex-sans), system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
@@ -36,17 +147,21 @@
     scroll-behavior: smooth;
   }
   body {
-    background: var(--color-ground);
-    color: var(--color-ink);
+    background: var(--page);
+    color: var(--fg);
   }
+  /* Underlined by default so links never rely on colour alone (WCAG 1.4.1);
+     buttons, nav and cards opt out with no-underline. */
   a {
-    color: var(--color-copper-dark);
+    color: var(--accent-ink);
+    text-decoration-line: underline;
+    text-underline-offset: 3px;
   }
   a:hover {
-    color: var(--color-copper-deep);
+    color: var(--fg);
   }
   :focus-visible {
-    outline: 3px solid var(--color-copper-bright);
+    outline: 3px solid var(--focus);
     outline-offset: 2px;
   }
   @media (prefers-reduced-motion: reduce) {
@@ -70,24 +185,17 @@
   font-size: 13px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--color-copper-dark);
+  color: var(--accent-ink);
 }
 
 /* Hatched box standing in for photography that hasn't been shot yet. */
 @utility photo-placeholder {
-  background-color: var(--color-placeholder);
-  background-image: repeating-linear-gradient(
-    135deg,
-    rgb(14 26 38 / 0.06) 0 10px,
-    transparent 10px 20px
-  );
+  background-color: var(--placeholder);
+  background-image: repeating-linear-gradient(135deg, var(--placeholder-stripe) 0 10px, transparent 10px 20px);
 }
 
+/* Same hatch on the always-dark inverse bands. */
 @utility photo-placeholder-dark {
-  background-color: var(--color-ink-2);
-  background-image: repeating-linear-gradient(
-    135deg,
-    rgb(255 255 255 / 0.05) 0 10px,
-    transparent 10px 20px
-  );
+  background-color: color-mix(in srgb, var(--inverse) 85%, white);
+  background-image: repeating-linear-gradient(135deg, rgb(255 255 255 / 0.05) 0 10px, transparent 10px 20px);
 }

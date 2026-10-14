@@ -19,7 +19,7 @@ export function NavLinks() {
             aria-current={current ? "page" : undefined}
             className={cn(
               "py-2.5 no-underline",
-              current ? "text-copper-dark shadow-[inset_0_-2px_0_var(--color-copper)]" : "text-ink hover:text-copper-dark",
+              current ? "text-accent-ink shadow-[inset_0_-2px_0_var(--color-accent)]" : "text-fg hover:text-accent-ink",
             )}
           >
             {label}

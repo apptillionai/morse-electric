@@ -2,7 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const control =
-  "w-full rounded border bg-white px-3 font-normal text-[15px] text-ink placeholder:text-steel aria-[invalid=true]:border-danger";
+  "w-full rounded border bg-surface px-3 font-normal text-[15px] text-fg placeholder:text-fg-muted aria-[invalid=true]:border-danger";
 
 interface FieldProps {
   label: string;
@@ -26,11 +26,11 @@ function FieldShell({
     <div className={cn("flex flex-col gap-1.5", className)}>
       <label htmlFor={name} className="text-sm font-semibold">
         {label}
-        {!required && <span className="font-normal text-muted"> (optional)</span>}
+        {!required && <span className="font-normal text-fg-muted"> (optional)</span>}
       </label>
       {children}
       {hint && !error && (
-        <span id={`${name}-hint`} className="text-[13px] text-muted">
+        <span id={`${name}-hint`} className="text-[13px] text-fg-muted">
           {hint}
         </span>
       )}
@@ -64,7 +64,7 @@ export function TextField({
         required={required}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(name, error, hint)}
-        className={cn(control, "h-11 border-field")}
+        className={cn(control, "h-11 border-edge-strong")}
         {...props}
       />
     </FieldShell>
@@ -89,7 +89,7 @@ export function TextAreaField({
         rows={4}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy(name, error, hint)}
-        className={cn(control, "resize-y border-field py-2.5")}
+        className={cn(control, "resize-y border-edge-strong py-2.5")}
         {...props}
       />
     </FieldShell>
@@ -99,7 +99,7 @@ export function TextAreaField({
 export function CheckboxField({ label, name, defaultChecked }: { label: string; name: string; defaultChecked?: boolean }) {
   return (
     <label className="flex min-h-11 cursor-pointer items-center gap-2.5">
-      <input type="checkbox" name={name} defaultChecked={defaultChecked} className="size-[18px] accent-ink" />
+      <input type="checkbox" name={name} defaultChecked={defaultChecked} className="size-[18px] accent-fg" />
       {label}
     </label>
   );
@@ -120,7 +120,7 @@ export function Honeypot() {
 export function FormMessage({ message }: { message?: string }) {
   if (!message) return null;
   return (
-    <p role="alert" className="rounded border border-danger/40 bg-danger/5 px-4 py-3 text-sm font-medium text-danger">
+    <p role="alert" className="rounded border-2 border-danger bg-surface px-4 py-3 text-sm font-medium text-danger">
       {message}
     </p>
   );

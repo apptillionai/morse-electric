@@ -3,11 +3,11 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
 const VARIANTS = {
-  primary: "bg-copper text-white hover:bg-copper-dark hover:text-white",
-  dark: "bg-ink text-white hover:bg-ink-2 hover:text-white",
-  outline: "border border-ink text-ink hover:bg-ink hover:text-white",
-  "outline-light": "border border-steel text-white hover:border-white hover:text-white",
-  quiet: "border border-field bg-white text-ink hover:border-ink hover:text-ink",
+  primary: "bg-accent text-on-accent hover:bg-accent-hover hover:text-on-accent",
+  dark: "bg-bold text-on-bold hover:bg-bold-hover hover:text-on-bold",
+  outline: "border border-bold text-fg hover:bg-bold hover:text-on-bold",
+  "outline-light": "border border-inverse-edge-strong text-on-inverse hover:border-on-inverse hover:text-on-inverse",
+  quiet: "border border-edge-strong bg-surface text-fg hover:border-bold hover:text-fg",
 } as const;
 
 const SIZES = {

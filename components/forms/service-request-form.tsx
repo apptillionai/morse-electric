@@ -35,7 +35,7 @@ export function ServiceRequestForm({ phone }: { phone: string }) {
           {(Object.keys(EQUIPMENT_TYPES) as EquipmentType[]).map((type) => (
             <label
               key={type}
-              className="flex min-h-11 cursor-pointer items-center rounded-full border border-field bg-white px-4 text-sm font-semibold has-checked:border-ink has-checked:bg-ink has-checked:text-white has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-copper-bright"
+              className="flex min-h-11 cursor-pointer items-center rounded-full border border-edge-strong bg-surface px-4 text-sm font-semibold has-checked:border-bold has-checked:bg-bold has-checked:text-on-bold has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-focus"
             >
               <input
                 type="radio"
@@ -90,7 +90,7 @@ export function ServiceRequestForm({ phone }: { phone: string }) {
         <Button type="submit" size="lg" disabled={pending}>
           {pending ? "Sending…" : "Send request"}
         </Button>
-        <span className="text-sm text-muted">Line down after hours? Call {phone}.</span>
+        <span className="text-sm text-fg-muted">Line down after hours? Call {phone}.</span>
       </div>
     </form>
   );

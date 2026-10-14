@@ -14,7 +14,7 @@ export function CollapsibleFilters({ activeCount, children }: { activeCount: num
         aria-expanded={open}
         aria-controls="catalog-filters"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-12 w-full items-center justify-center gap-2 rounded border border-ink bg-white font-semibold lg:hidden"
+        className="flex h-12 w-full items-center justify-center gap-2 rounded border border-bold bg-surface font-semibold lg:hidden"
       >
         <SlidersHorizontal size={18} aria-hidden="true" />
         {open ? "Hide filters" : "Filters"}

@@ -3,6 +3,7 @@ import { Barlow_Condensed, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { SITE } from "@/lib/site";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 const barlow = Barlow_Condensed({
@@ -33,11 +34,20 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${barlow.variable} ${plexSans.variable} ${plexMono.variable}`}>
+    // The boot script sets data-theme before paint, so React must accept the attribute it finds.
+    <html
+      lang="en"
+      data-theme="light"
+      suppressHydrationWarning
+      className={`${barlow.variable} ${plexSans.variable} ${plexMono.variable}`}
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className="flex min-h-screen flex-col font-sans antialiased">
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-white focus:px-4 focus:py-2"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-surface focus:px-4 focus:py-2"
         >
           Skip to content
         </a>

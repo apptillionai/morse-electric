@@ -3,6 +3,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { SITE } from "@/lib/site";
 import { Logo } from "./logo";
 import { NavLinks } from "./nav-links";
+import { ThemeChooser } from "./theme-chooser";
 
 export function PhoneLink({ className }: { className?: string }) {
   return SITE.phoneHref ? (
@@ -17,19 +18,22 @@ export function PhoneLink({ className }: { className?: string }) {
 export function SiteHeader() {
   return (
     <>
-      <div className="bg-ink text-[13px] text-mist">
+      <div className="bg-inverse text-[13px] text-on-inverse-muted">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-1.5 px-6 py-2">
           <span>
-            <strong className="font-semibold text-copper-bright">24/7 emergency motor service</strong> · Call{" "}
-            <PhoneLink className="text-white" />
+            <strong className="font-semibold text-on-inverse-accent">24/7 emergency motor service</strong> · Call{" "}
+            <PhoneLink className="text-on-inverse" />
           </span>
-          <span>
-            {SITE.hours} · {SITE.street}, {SITE.cityStateZip}
+          <span className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+            <span>
+              {SITE.hours} · {SITE.street}, {SITE.cityStateZip}
+            </span>
+            <ThemeChooser />
           </span>
         </div>
       </div>
 
-      <header className="border-b border-line bg-white">
+      <header className="border-b border-edge bg-surface">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-8 gap-y-3.5 px-6 py-3.5">
           <Logo />
           <NavLinks />
@@ -42,12 +46,12 @@ export function SiteHeader() {
               name="q"
               type="search"
               placeholder="Part #, HP, frame…"
-              className="h-11 min-w-0 flex-1 rounded-l border border-r-0 border-field bg-white px-3.5 text-[15px] placeholder:text-muted"
+              className="h-11 min-w-0 flex-1 rounded-l border border-r-0 border-edge-strong bg-surface px-3.5 text-[15px] placeholder:text-fg-muted"
             />
             <button
               type="submit"
               aria-label="Search"
-              className="flex h-11 w-12 items-center justify-center rounded-r bg-ink text-white"
+              className="flex h-11 w-12 items-center justify-center rounded-r bg-bold text-on-bold"
             >
               <Search size={20} aria-hidden="true" />
             </button>

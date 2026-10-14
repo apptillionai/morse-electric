@@ -94,7 +94,7 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
       />
       <DemoCatalogBanner show={catalog.isDemo} />
       <div className="mx-auto flex max-w-7xl flex-col gap-10 px-6 pt-7 pb-20">
-        <nav aria-label="Breadcrumb" className="flex flex-wrap gap-2 text-sm text-muted">
+        <nav aria-label="Breadcrumb" className="flex flex-wrap gap-2 text-sm text-fg-muted">
           <Link href="/">Home</Link>
           <span aria-hidden="true">/</span>
           <Link href="/shop">Shop</Link>
@@ -105,7 +105,7 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
             </>
           )}
           <span aria-hidden="true">/</span>
-          <span aria-current="page" className="font-medium text-ink">{product.sku}</span>
+          <span aria-current="page" className="font-medium text-fg">{product.sku}</span>
         </nav>
 
         <div className="flex flex-wrap items-start gap-12">
@@ -129,12 +129,12 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
           {/* Buy box */}
           <div className="flex min-w-0 flex-[1_1_440px] flex-col gap-5">
             <div className="flex flex-col gap-2.5">
-              <span className="font-mono text-[13px] text-muted">
+              <span className="font-mono text-[13px] text-fg-muted">
                 Part # {product.sku}
                 {product.mfrPartNumber && <> · Mfr # {product.mfrPartNumber}</>}
               </span>
               <h1 className="display text-[44px]">{product.name}</h1>
-              <span className="font-mono text-sm text-muted">{specLine(product)}</span>
+              <span className="font-mono text-sm text-fg-muted">{specLine(product)}</span>
             </div>
 
             {product.variants.length > 1 && (
@@ -149,12 +149,12 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
                         href={`/products/${v.slug}`}
                         aria-current={current ? "page" : undefined}
                         className={cn(
-                          "flex min-h-16 flex-col gap-0.5 rounded bg-white p-2.5 text-ink no-underline hover:text-ink",
-                          current ? "border-2 border-ink" : "border border-field hover:border-ink",
+                          "flex min-h-16 flex-col gap-0.5 rounded bg-surface p-2.5 text-fg no-underline hover:text-fg",
+                          current ? "border-2 border-bold" : "border border-edge-strong hover:border-bold",
                         )}
                       >
                         <strong className="text-sm">{CONDITION_LABELS[v.condition]}</strong>
-                        <span className="text-[13px] text-muted">
+                        <span className="text-[13px] text-fg-muted">
                           {formatPrice(v.priceCents) ?? "Price on request"} · {v.inStock ? "In stock" : "Special order"}
                         </span>
                       </Link>
@@ -167,15 +167,15 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
             <div className="flex flex-col gap-1">
               <PriceLabel cents={product.priceCents} className={product.priceCents !== null ? "text-5xl" : "text-2xl"} />
               {core && (
-                <span className="text-sm text-muted">
+                <span className="text-sm text-fg-muted">
                   Plus {core} refundable core charge, credited when your old unit comes back.
                 </span>
               )}
             </div>
 
-            <div className="flex flex-col gap-1.5 rounded-md border border-line bg-white px-4 py-3.5">
+            <div className="flex flex-col gap-1.5 rounded-md border border-edge bg-surface px-4 py-3.5">
               <StockStatus inStock={product.inStock} className="text-[15px]" />
-              <span className="flex items-start gap-2 text-sm text-muted">
+              <span className="flex items-start gap-2 text-sm text-fg-muted">
                 <Truck size={16} className="mt-0.5 flex-none" aria-hidden="true" />
                 {FULFILLMENT[product.shipClass]}
               </span>
@@ -191,17 +191,17 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
                 </ButtonLink>
               )}
             </div>
-            <p className="text-sm text-muted">
+            <p className="text-sm text-fg-muted">
               Volume or account pricing? Mention it in your request, or call <PhoneLink />.
             </p>
 
-            <div className="flex flex-wrap items-center gap-3.5 rounded-md bg-ink p-4 text-white">
-              <Wrench size={26} className="text-copper-bright" aria-hidden="true" />
-              <span className="flex-[1_1_240px] text-sm leading-normal text-mist">
-                <strong className="text-white">Have the old unit?</strong> We’ll quote a repair next to this price so
+            <div className="flex flex-wrap items-center gap-3.5 rounded-md bg-inverse p-4 text-on-inverse">
+              <Wrench size={26} className="text-on-inverse-accent" aria-hidden="true" />
+              <span className="flex-[1_1_240px] text-sm leading-normal text-on-inverse-muted">
+                <strong className="text-on-inverse">Have the old unit?</strong> We’ll quote a repair next to this price so
                 you can compare.
               </span>
-              <Link href="/service#request" className="font-semibold text-white hover:text-mist">
+              <Link href="/service#request" className="font-semibold text-on-inverse hover:text-on-inverse-muted">
                 Compare repair →
               </Link>
             </div>
@@ -211,24 +211,24 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
         {product.description && (
           <section className="max-w-3xl">
             <h2 className="display mb-3 text-3xl">Overview</h2>
-            <p className="leading-relaxed text-muted">{product.description}</p>
+            <p className="leading-relaxed text-fg-muted">{product.description}</p>
           </section>
         )}
 
         <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-          <section className="rounded-md border border-line bg-white p-7">
+          <section className="rounded-md border border-edge bg-surface p-7">
             <h2 className="display mb-4 text-3xl">Specifications</h2>
             <dl className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-x-12">
               {specRows(product).map(([label, value]) => (
-                <div key={label} className="flex justify-between gap-4 border-b border-line-soft py-3">
-                  <dt className="text-muted">{label}</dt>
+                <div key={label} className="flex justify-between gap-4 border-b border-edge-soft py-3">
+                  <dt className="text-fg-muted">{label}</dt>
                   <dd className="text-right font-mono text-sm">{value}</dd>
                 </div>
               ))}
             </dl>
           </section>
 
-          <section className="flex flex-col gap-4 rounded-md border border-line bg-white p-7">
+          <section className="flex flex-col gap-4 rounded-md border border-edge bg-surface p-7">
             <h2 className="display text-3xl">Documents</h2>
             {product.documents.length ? (
               <ul className="flex flex-col gap-3">
@@ -239,10 +239,10 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
                 ))}
               </ul>
             ) : (
-              <p className="text-muted">Spec sheets and drawings are available on request.</p>
+              <p className="text-fg-muted">Spec sheets and drawings are available on request.</p>
             )}
             <h2 className="display mt-2 text-3xl">Warranty</h2>
-            <p className="text-sm leading-relaxed text-muted">
+            <p className="text-sm leading-relaxed text-fg-muted">
               New units carry the manufacturer’s warranty. Remanufactured and exchange units carry Morse’s [XX]-month
               shop warranty.
             </p>
