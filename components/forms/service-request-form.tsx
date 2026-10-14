@@ -88,7 +88,7 @@ export function ServiceRequestForm({ phone }: { phone: string }) {
         <CheckboxField label="Quote a replacement too" name="wantsReplacementQuote" defaultChecked={v.wantsReplacementQuote === "on"} />
       </fieldset>
 
-      <Turnstile action="service" resetSignal={state} />
+      {!profile && <Turnstile action="service" resetSignal={state} />}
 
       <div className="flex flex-wrap items-center gap-3.5">
         <Button type="submit" size="lg" disabled={pending}>

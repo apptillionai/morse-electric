@@ -65,8 +65,12 @@ export async function submitQuoteRequest(_prev: RequestFormState, formData: Form
     return { status: "error", message: "Check the highlighted fields.", fieldErrors: fieldErrors(parsed.error), values };
   }
 
-  const captcha = await verifyCaptcha(formData.get("cf-turnstile-response"), "quote");
-  if (!captcha.ok) return { status: "error", message: captcha.error, values };
+  // Signed-in customers were invited by staff, so they skip the spam check.
+  const customerId = await currentCustomerId();
+  if (!customerId) {
+    const captcha = await verifyCaptcha(formData.get("cf-turnstile-response"), "quote");
+    if (!captcha.ok) return { status: "error", message: captcha.error, values };
+  }
 
   if (!isSupabaseAdminConfigured()) return { status: "error", message: UNAVAILABLE, values };
 
@@ -76,7 +80,7 @@ export async function submitQuoteRequest(_prev: RequestFormState, formData: Form
     const reference = await insertQuoteRequest(input, {
       productId: product?.id ?? null,
       sourcePath: sourcePath(formData),
-      customerId: await currentCustomerId(),
+      customerId,
     });
 
     after(() =>
@@ -113,14 +117,18 @@ export async function submitServiceRequest(_prev: RequestFormState, formData: Fo
     return { status: "error", message: "Check the highlighted fields.", fieldErrors: fieldErrors(parsed.error), values };
   }
 
-  const captcha = await verifyCaptcha(formData.get("cf-turnstile-response"), "service");
-  if (!captcha.ok) return { status: "error", message: captcha.error, values };
+  // Signed-in customers were invited by staff, so they skip the spam check.
+  const customerId = await currentCustomerId();
+  if (!customerId) {
+    const captcha = await verifyCaptcha(formData.get("cf-turnstile-response"), "service");
+    if (!captcha.ok) return { status: "error", message: captcha.error, values };
+  }
 
   if (!isSupabaseAdminConfigured()) return { status: "error", message: UNAVAILABLE, values };
 
   const input = parsed.data;
   try {
-    const reference = await insertServiceRequest(input, { sourcePath: sourcePath(formData), customerId: await currentCustomerId() });
+    const reference = await insertServiceRequest(input, { sourcePath: sourcePath(formData), customerId });
     const yes = (flag: boolean) => (flag ? "Yes" : null);
 
     after(() =>

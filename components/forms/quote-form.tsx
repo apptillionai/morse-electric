@@ -66,7 +66,7 @@ export function QuoteForm({ product }: { product: { sku: string; name: string } 
         placeholder="Nameplate details (make, HP, RPM, frame, voltage), application, or how soon you need it…"
       />
 
-      <Turnstile action="quote" resetSignal={state} />
+      {!profile && <Turnstile action="quote" resetSignal={state} />}
 
       <div>
         <Button type="submit" size="lg" disabled={pending}>
