@@ -1,5 +1,7 @@
 # Morse Electric Motor Co.
 
+Live at **https://morseelectricmotor.com** (`www.` and the old `morse-electric.vercel.app` address redirect there).
+
 Website for Morse Electric Motor Co.: sales and service of electric motors, pumps, blowers, vacuum pumps, starters and alternators.
 
 Built with Next.js 16 (App Router), Tailwind CSS 4, Supabase (Postgres + Storage), Resend and Cloudflare Turnstile.
@@ -17,7 +19,7 @@ Built with Next.js 16 (App Router), Tailwind CSS 4, Supabase (Postgres + Storage
 
 Quote and service requests are stored in Supabase with a reference number (`Q-1001`, `SR-1001`). Staff get an email notification and customers get a confirmation.
 
-Every page has a **Light / Mid / Dark** theme switch in the top bar. The choice is saved in the browser, and the first visit follows the device's dark-mode setting. Colours are semantic tokens in `app/globals.css`; `__tests__/theme-contrast.test.ts` fails the build if any text or control pair drops below WCAG AA contrast in any theme.
+Every page has a **Light / Mid / Dark** theme switch in the top bar. The choice is saved in the browser. First-time visitors get the site default, which staff set at **/admin/settings** (Light out of the box; Mid, Dark or "match the device" are the other options). Colours are semantic tokens in `app/globals.css`; `__tests__/theme-contrast.test.ts` fails the build if any text or control pair drops below WCAG AA contrast in any theme.
 
 ## Staff admin (`/admin`)
 

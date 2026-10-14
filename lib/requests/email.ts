@@ -65,8 +65,9 @@ export async function sendRequestEmails(email: RequestEmail): Promise<void> {
       subject: `We received your ${label.toLowerCase()} (${email.reference})`,
       html: `<p style="font:15px/1.5 sans-serif">Hi ${escapeHtml(email.customerName)},</p>
 <p style="font:15px/1.5 sans-serif">Thanks for contacting ${escapeHtml(SITE.name)}. Your reference is <strong>${escapeHtml(email.reference)}</strong>. A member of our team will follow up shortly. If it's urgent, call us at ${escapeHtml(SITE.phone)}.</p>
-<p style="font:15px/1.5 sans-serif">Here's what you sent:</p>${body.html}`,
-      text: `Hi ${email.customerName},\n\nThanks for contacting ${SITE.name}. Your reference is ${email.reference}. A member of our team will follow up shortly. If it's urgent, call us at ${SITE.phone}.\n\n${body.text}`,
+<p style="font:15px/1.5 sans-serif">Here's what you sent:</p>${body.html}
+<p style="font:13px/1.5 sans-serif;color:#4A5866">${escapeHtml(SITE.name)} · <a href="${escapeHtml(SITE.url)}">${escapeHtml(new URL(SITE.url).host)}</a></p>`,
+      text: `Hi ${email.customerName},\n\nThanks for contacting ${SITE.name}. Your reference is ${email.reference}. A member of our team will follow up shortly. If it's urgent, call us at ${SITE.phone}.\n\n${body.text}\n\n${SITE.name} · ${SITE.url}`,
     }),
   ]);
 

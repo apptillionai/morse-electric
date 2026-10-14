@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CategoryIcon } from "@/components/catalog/category-icon";
 import { DemoCatalogBanner } from "@/components/catalog/demo-banner";
@@ -11,6 +12,8 @@ import { SITE } from "@/lib/site";
 
 // Prerendered, then refreshed so stock and featured items stay current.
 export const revalidate = 300;
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 const REPAIR_STEPS = [
   ["Drop off or schedule pickup", `Bring it in, or our truck collects it from your site within ${SITE.serviceArea}.`],

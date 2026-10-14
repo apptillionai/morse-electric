@@ -2,7 +2,7 @@
 -- catalog, stock, requests and catalog media. Run with `supabase test db`.
 begin;
 create extension if not exists pgtap;
-select plan(14);
+select plan(18);
 
 insert into auth.users (id, email) values
   ('c1000000-0000-4000-8000-000000000001', 'staff@example.invalid'),
@@ -35,6 +35,12 @@ select throws_ok(
   $$insert into storage.objects (bucket_id, name) values ('product-images', 'x.jpg')$$,
   '42501', null, 'customers cannot upload catalog media'
 );
+select is((select default_theme from public.site_settings), 'light', 'anyone signed in can read the default theme');
+update public.site_settings set default_theme = 'dark';
+reset role;
+select is((select default_theme from public.site_settings), 'light', 'non-staff cannot change site settings');
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"c1000000-0000-4000-8000-000000000002"}';
 
 reset role;
 
@@ -66,7 +72,10 @@ select lives_ok(
   $$delete from public.products where sku = 'ZZ-ACTIVE'$$,
   'staff can delete a product that has stock (cascades to inventory)'
 );
+select lives_ok($$update public.site_settings set default_theme = 'system'$$, 'staff can change the default theme');
+select is((select default_theme from public.site_settings), 'system', 'default theme updated');
 
 reset role;
+
 select * from finish();
 rollback;

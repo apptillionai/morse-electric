@@ -6,6 +6,7 @@ import { getCatalog } from "@/lib/catalog";
 export const metadata: Metadata = {
   title: "Request a quote",
   description: "Get pricing and availability on motors, pumps, blowers, vacuum pumps, starters and alternators.",
+  alternates: { canonical: "/quote" },
 };
 
 export default async function QuotePage(props: PageProps<"/quote">) {

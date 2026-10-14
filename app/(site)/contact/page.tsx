@@ -6,6 +6,7 @@ import { SITE } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Contact & hours",
   description: `Call, visit or email ${SITE.name}.`,
+  alternates: { canonical: "/contact" },
 };
 
 export default function ContactPage() {

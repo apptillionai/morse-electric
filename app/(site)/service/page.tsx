@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: "Repair & service",
   description:
     "Motor rewinding and repair, pump, blower and vacuum pump rebuilds, starter and alternator repair, and on-site field service.",
+  alternates: { canonical: "/service" },
 };
 
 const REPAIRS = [

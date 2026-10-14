@@ -1,3 +1,6 @@
+/** The production address. www and the old vercel.app address redirect here. */
+export const PRIMARY_URL = "https://morseelectricmotor.com";
+
 /**
  * Business details shown across the site. Bracketed values are placeholders
  * until Morse confirms them; set the env vars to override without a deploy of
@@ -10,7 +13,7 @@ const digits = phone.replace(/[^\d+]/g, "");
 export const SITE = {
   name: "Morse Electric Motor Co.",
   legalName: "Morse Electric Motor Company",
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  url: (process.env.NEXT_PUBLIC_SITE_URL ?? PRIMARY_URL).replace(/\/$/, ""),
   phone,
   phoneHref: digits.length >= 10 ? `tel:${digits}` : null,
   email: process.env.NEXT_PUBLIC_MORSE_EMAIL ?? "[EMAIL]",

@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: "Shop motors & parts",
   description:
     "Shop new and remanufactured electric motors, pumps, blowers, vacuum pumps, starters and alternators. Filter by horsepower, RPM, frame and enclosure.",
+  alternates: { canonical: "/shop" },
 };
 
 export default async function ShopPage(props: PageProps<"/shop">) {
