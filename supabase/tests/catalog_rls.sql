@@ -2,7 +2,7 @@
 -- Run with `supabase test db` against a local stack.
 begin;
 create extension if not exists pgtap;
-select plan(16);
+select plan(17);
 
 insert into public.categories (id, slug, name)
 values ('a1000000-0000-4000-8000-000000000001', 'electric-motors', 'Electric motors');
@@ -64,6 +64,10 @@ select throws_ok(
 select throws_ok(
   $$update public.products set name = 'hacked'$$,
   '42501', null, 'anon cannot modify products'
+);
+select throws_ok(
+  'select public.sync_product_in_stock()',
+  '42501', null, 'anon cannot call the security-definer stock trigger function'
 );
 
 reset role;
