@@ -17,7 +17,30 @@ Built with Next.js 16 (App Router), Tailwind CSS 4, Supabase (Postgres + Storage
 
 Quote and service requests are stored in Supabase with a reference number (`Q-1001`, `SR-1001`). Staff get an email notification and customers get a confirmation.
 
-Planned next: a staff admin area (product editing, CSV import, request inbox), photo uploads on forms, then Phase 2 (cart, Stripe checkout, accounts, core charges, Net-30).
+Every page has a **Light / Mid / Dark** theme switch in the top bar. The choice is saved in the browser, and the first visit follows the device's dark-mode setting. Colours are semantic tokens in `app/globals.css`; `__tests__/theme-contrast.test.ts` fails the build if any text or control pair drops below WCAG AA contrast in any theme.
+
+## Staff admin (`/admin`)
+
+| Route | What it does |
+| --- | --- |
+| `/admin` | Dashboard: new quotes, open and rush service jobs, out-of-stock and draft products |
+| `/admin/products` | Search and filter the catalog; add, edit, archive or delete products; photos; stock |
+| `/admin/import` | CSV import with a preview (new, updated, unchanged, problems by row) before anything is saved; template download |
+| `/admin/products/export` | The whole catalog as CSV, in the same format the importer reads |
+| `/admin/quotes`, `/admin/service` | Request inboxes with status and private staff notes |
+
+**Adding a staff member:** create the user in the Supabase dashboard (Authentication → Users → Add user), then run in the SQL editor:
+
+```sql
+insert into public.staff (user_id, role)
+select id, 'admin' from auth.users where email = 'person@example.com';
+```
+
+Turn off public sign-ups (Authentication → Sign In / Providers) — staff accounts are only ever created by hand. Access is enforced by row-level security (`private.is_staff()`), and every admin page and server action re-checks it.
+
+**CSV import rules:** rows match existing products by SKU (a new SKU creates a product); only the columns present in the file change; new products need a name and category. Common header names (`Part #`, `Horsepower`, `Qty on hand`, …) are recognised, and values like `$1,299`, `7½`, `TEFC` and `3 phase` are understood.
+
+Planned next: photo uploads on the public forms, then Phase 2 (cart, Stripe checkout, accounts, core charges, Net-30).
 
 ## Getting started
 
@@ -35,7 +58,7 @@ Without Supabase credentials the site serves a **preview catalog** of placeholde
 2. Apply the schema: `supabase link --project-ref <ref>` then `supabase db push`.
 3. Optionally load the placeholder catalog: `npm run seed:catalog`.
 
-For a local stack, run `supabase start`, then `supabase db reset` and `supabase test db` (row-level security tests live in `supabase/tests/`).
+For a local stack, run `supabase start`, then `supabase db reset` and `supabase test db` (row-level security tests live in `supabase/tests/`, including `staff_rls.sql` for the admin permissions).
 
 ## Scripts
 

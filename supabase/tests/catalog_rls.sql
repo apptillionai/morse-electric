@@ -76,11 +76,10 @@ reset role;
 set local role authenticated;
 
 select is((select count(*)::int from public.products), 1, 'authenticated users see only active products');
-select throws_ok('select * from public.quote_requests', '42501', null, 'authenticated users cannot read quote requests');
-select throws_ok(
-  $$delete from public.categories$$,
-  '42501', null, 'authenticated users cannot delete categories'
-);
+-- Signed-in users hold table grants for the staff back office; RLS returns them nothing.
+select is((select count(*)::int from public.quote_requests), 0, 'non-staff signed-in users see no quote requests');
+delete from public.categories;
+select is((select count(*)::int from public.categories where slug = 'electric-motors'), 1, 'non-staff signed-in users cannot delete categories');
 
 reset role;
 

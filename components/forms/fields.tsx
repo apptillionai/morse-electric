@@ -96,6 +96,37 @@ export function TextAreaField({
   );
 }
 
+export function SelectField({
+  label,
+  name,
+  error,
+  hint,
+  required,
+  className,
+  options,
+  ...props
+}: FieldProps & Omit<ComponentProps<"select">, "name"> & { options: readonly { value: string; label: string }[] }) {
+  return (
+    <FieldShell label={label} name={name} error={error} hint={hint} required={required} className={className}>
+      <select
+        id={name}
+        name={name}
+        required={required}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(name, error, hint)}
+        className={cn(control, "h-11 border-edge-strong px-2.5")}
+        {...props}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </FieldShell>
+  );
+}
+
 export function CheckboxField({ label, name, defaultChecked }: { label: string; name: string; defaultChecked?: boolean }) {
   return (
     <label className="flex min-h-11 cursor-pointer items-center gap-2.5">

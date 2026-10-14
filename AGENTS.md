@@ -13,3 +13,6 @@ Highlights for Next 16: `params` and `searchParams` are Promises (use the genera
 - **Database changes** go in a new file under `supabase/migrations/`. Keep RLS on every table, and extend `supabase/tests/catalog_rls.sql`.
 - Install with `npm install` (`.npmrc` sets `legacy-peer-deps` to work around an npm resolver crash).
 - Before pushing, run `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`.
+- **Admin** (`app/admin`) uses the signed-in staff member's session client, never the service-role client, so RLS is the real gate. Every admin page calls `staffClient()`/`requireStaff()` and every server action calls `requireStaff()` itself; the layout guard is not enough.
+- **Products are written in one shape:** the admin form (`lib/admin/product-form.ts`) and the CSV importer (`lib/admin/csv-import.ts`) both produce `ProductValues` via the parsers in `lib/admin/product-fields.ts`. The CSV export must keep round-tripping through the importer (there is a test).
+- **Colours are theme tokens** (`bg-surface`, `text-fg-muted`, `bg-bold`, `text-accent-ink`, …) defined for light, mid and dark in `app/globals.css`. Never use raw colours in components. If you add or change a token, the contrast test must still pass.
