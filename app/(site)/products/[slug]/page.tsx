@@ -24,6 +24,16 @@ export async function generateMetadata(props: PageProps<"/products/[slug]">): Pr
     title: `${product.name} (${CONDITION_LABELS[product.condition]})`,
     description: product.description ?? `${product.name}. ${specLine(product)}. Part # ${product.sku}.`,
     alternates: { canonical: `/products/${product.slug}` },
+    openGraph: {
+      type: "website",
+      url: `/products/${product.slug}`,
+      title: product.name,
+      description: specLine(product),
+      // Child openGraph replaces the parent's, so fall back to the site share image explicitly.
+      images: product.images[0]
+        ? [{ url: product.images[0].url, alt: product.images[0].alt || product.name }]
+        : [{ url: "/opengraph-image", width: 1200, height: 630, alt: SITE.name }],
+    },
   };
 }
 
@@ -58,6 +68,7 @@ function productJsonLd(p: ProductDetail) {
     sku: p.sku,
     mpn: p.mfrPartNumber ?? undefined,
     description: p.description ?? specLine(p),
+    url: `${SITE.url}/products/${p.slug}`,
     image: p.images.map((i) => i.url),
     brand: p.brand ? { "@type": "Brand", name: p.brand.name } : undefined,
     itemCondition:
