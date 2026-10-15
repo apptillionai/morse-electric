@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { TURNSTILE_SRC, whenTurnstileReady } from "@/lib/requests/turnstile-loader";
 
 type TurnstileApi = {
   render: (container: HTMLElement, options: Record<string, unknown>) => string;
@@ -42,12 +43,17 @@ export function Turnstile({ action, resetSignal }: { action: "quote" | "service"
   }, [action, siteKey]);
 
   useEffect(() => {
-    render();
+    if (!siteKey) return;
+    let cancelled = false;
+    whenTurnstileReady(window as unknown as Parameters<typeof whenTurnstileReady>[0]).then(() => {
+      if (!cancelled) render();
+    });
     return () => {
+      cancelled = true;
       if (widgetRef.current !== null) window.turnstile?.remove(widgetRef.current);
       widgetRef.current = null;
     };
-  }, [render]);
+  }, [render, siteKey]);
 
   useEffect(() => {
     if (widgetRef.current !== null) window.turnstile?.reset(widgetRef.current);
@@ -60,9 +66,8 @@ export function Turnstile({ action, resetSignal }: { action: "quote" | "service"
       <div ref={containerRef} className="min-h-[65px]" />
       <Script
         id="turnstile"
-        src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+        src={TURNSTILE_SRC}
         strategy="afterInteractive"
-        onReady={render}
         onError={() => setFailed(true)}
       />
       {failed && (
