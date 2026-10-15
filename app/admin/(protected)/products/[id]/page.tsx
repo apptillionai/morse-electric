@@ -63,6 +63,7 @@ export default async function EditProductPage(props: PageProps<"/admin/products/
             id: img.id,
             url: storagePublicUrl("product-images", img.storagePath),
             alt: img.alt,
+            stock: img.stock,
             remove: deleteImageAction.bind(null, product.id, img.id),
           }))}
         />

@@ -10,6 +10,7 @@ export interface ManagedImage {
   id: string;
   url: string;
   alt: string;
+  stock: boolean;
   remove: () => Promise<void>;
 }
 
@@ -26,7 +27,10 @@ export function ImageManager({ productId, images }: { productId: string; images:
               {/* eslint-disable-next-line @next/next/no-img-element -- admin thumbnails straight from Storage */}
               <img src={img.url} alt={img.alt} className="aspect-square w-full rounded border border-edge object-cover" />
               <div className="flex items-center justify-between gap-2 text-xs text-fg-muted">
-                {i === 0 ? "Main photo" : `Photo ${i + 1}`}
+                <span>
+                  {i === 0 ? "Main photo" : `Photo ${i + 1}`}
+                  {img.stock && <span className="block">Stock photo</span>}
+                </span>
                 <DeleteButton action={img.remove} label="Remove" confirmText="Remove this photo?" />
               </div>
             </li>
@@ -34,6 +38,12 @@ export function ImageManager({ productId, images }: { productId: string; images:
         </ul>
       ) : (
         <p className="text-sm text-fg-muted">No photos yet. The site shows a placeholder until you add one.</p>
+      )}
+      {images.some((img) => img.stock) && (
+        <p className="text-[13px] text-fg-muted">
+          Stock photos are free-licensed stand-ins, shown on the site as “representative” with a photo credit. Once you
+          upload your own photo of the unit, remove the stock one.
+        </p>
       )}
       <form action={action} className="flex flex-col gap-3">
         <FormMessage message={state.error} />

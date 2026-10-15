@@ -71,6 +71,7 @@ Without Supabase credentials the site serves a **preview catalog** of placeholde
 1. Create a Supabase project and fill in `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` in `.env.local`.
 2. Apply the schema: `supabase link --project-ref <ref>` then `supabase db push`.
 3. Optionally load the placeholder catalog: `npm run seed:catalog`.
+4. Optionally give those products stand-in photos from Wikimedia Commons: `npm run seed:photos -- --dry-run` to check each pick and its license, then `npm run seed:photos`. Picks live in `scripts/product-photos.ts`; only public domain, CC0, CC BY and CC BY-SA files are accepted, and the product page shows them as “representative” with the author and license. Products with staff-uploaded photos are skipped.
 
 For a local stack, run `supabase start`, then `supabase db reset` and `supabase test db` (row-level security tests live in `supabase/tests/`, including `staff_rls.sql` for the admin permissions).
 
@@ -84,11 +85,12 @@ For a local stack, run `supabase start`, then `supabase db reset` and `supabase 
 | `npm run typecheck` | Generate route types and run `tsc` |
 | `npm test` | Vitest unit tests |
 | `npm run seed:catalog` | Upsert the placeholder catalog into Supabase |
+| `npm run seed:photos` | Attach free-licensed stand-in photos (`--dry-run` to preview, `--replace` to swap) |
 
 ## Placeholders to replace
 
 Phone, email, address, hours and service area are edited by staff at **/admin/settings** (stored in `public.site_settings`) and show on every page, the contact page's structured data and emails. The address is set (380 East Broadway, Gardner, MA 01440); anything left blank renders as a `[PHONE]`-style placeholder. We still need from Morse:
 - the real parts list (SKU, specs, condition, price, stock)
-- product photography
+- product photography (stand-in Commons photos fill the gap until then; staff remove them from each product's Photos panel once they upload their own)
 - warranty terms (currently `[XX]-month`)
 - which brands they are authorized to sell

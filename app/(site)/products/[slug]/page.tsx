@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DemoCatalogBanner } from "@/components/catalog/demo-banner";
-import { PriceLabel, ProductPhoto, StockStatus, specLine } from "@/components/catalog/product-bits";
+import { PhotoCredits, PriceLabel, ProductPhoto, StockStatus, specLine } from "@/components/catalog/product-bits";
 import { PhoneLink } from "@/components/site/site-header";
 import { ButtonLink } from "@/components/ui/button";
 import { getCatalog } from "@/lib/catalog";
@@ -137,6 +137,7 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
                 ))}
               </div>
             )}
+            <PhotoCredits credits={product.images.slice(0, 5).flatMap((i) => (i.credit ? [i.credit] : []))} />
           </div>
 
           {/* Buy box */}
