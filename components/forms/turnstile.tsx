@@ -30,7 +30,7 @@ export function Turnstile({ action, resetSignal }: { action: "quote" | "service"
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
   const render = useCallback(() => {
-    if (!siteKey || !containerRef.current || !window.turnstile || widgetRef.current !== null) return;
+    if (!siteKey || !containerRef.current || typeof window.turnstile?.render !== "function" || widgetRef.current !== null) return;
     widgetRef.current = window.turnstile.render(containerRef.current, {
       sitekey: siteKey,
       action,
@@ -44,13 +44,17 @@ export function Turnstile({ action, resetSignal }: { action: "quote" | "service"
   useEffect(() => {
     render();
     return () => {
-      if (widgetRef.current !== null) window.turnstile?.remove(widgetRef.current);
+      if (widgetRef.current !== null && typeof window.turnstile?.remove === "function") {
+        window.turnstile.remove(widgetRef.current);
+      }
       widgetRef.current = null;
     };
   }, [render]);
 
   useEffect(() => {
-    if (widgetRef.current !== null) window.turnstile?.reset(widgetRef.current);
+    if (widgetRef.current !== null && typeof window.turnstile?.reset === "function") {
+      window.turnstile.reset(widgetRef.current);
+    }
   }, [resetSignal]);
 
   if (!siteKey) return null;
@@ -59,7 +63,7 @@ export function Turnstile({ action, resetSignal }: { action: "quote" | "service"
     <div className="flex flex-col gap-2">
       <div ref={containerRef} className="min-h-[65px]" />
       <Script
-        id="turnstile"
+        id="cloudflare-turnstile-script"
         src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
         strategy="afterInteractive"
         onReady={render}
