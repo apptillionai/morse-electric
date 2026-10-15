@@ -35,7 +35,7 @@ export const PRODUCT_PHOTOS: ProductPhotoPick[] = [
   { sku: "MEM-B-RGN-2.5", file: "File:Seitenkanalverdichter 2014-04-19 15-40.jpg", alt: "Regenerative (side channel) blower" },
   // Starters & controls
   { sku: "MEM-S-NEMA1", file: "File:Inside 3 phase motor starter.jpg", alt: "Inside an enclosed three-phase motor starter" },
-  { sku: "MEM-S-12V-GR-R", file: "File:Starter motor.JPG", alt: "Vehicle starter motor" },
+  { sku: "MEM-S-12V-GR-R", file: "File:PowerEdge 39PE 12V Starter Sonoma 2026.jpg", alt: "Heavy-duty 12V engine starter" },
   // Pumps
   { sku: "MEM-P-CC-1", file: "File:Kreiselpumpe-Elektromotor.jpg", alt: "Centrifugal pump driven by an electric motor" },
   { sku: "MEM-P-SUB-2", file: "File:Norip-Rohr mit Unterwasserpumpe.jpg", alt: "Submersible well pump on its riser pipe" },
