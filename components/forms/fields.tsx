@@ -1,0 +1,158 @@
+import type { ComponentProps, ReactNode } from "react";
+import { cn } from "@/lib/utils";
+
+const control =
+  "w-full rounded border bg-surface px-3 font-normal text-[15px] text-fg placeholder:text-fg-muted aria-[invalid=true]:border-danger";
+
+interface FieldProps {
+  label: string;
+  name: string;
+  error?: string;
+  hint?: ReactNode;
+  required?: boolean;
+  className?: string;
+}
+
+function FieldShell({
+  label,
+  name,
+  error,
+  hint,
+  required,
+  className,
+  children,
+}: FieldProps & { children: ReactNode }) {
+  return (
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      <label htmlFor={name} className="text-sm font-semibold">
+        {label}
+        {!required && <span className="font-normal text-fg-muted"> (optional)</span>}
+      </label>
+      {children}
+      {hint && !error && (
+        <span id={`${name}-hint`} className="text-[13px] text-fg-muted">
+          {hint}
+        </span>
+      )}
+      {error && (
+        <span id={`${name}-error`} className="text-[13px] font-medium text-danger">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function describedBy(name: string, error?: string, hint?: ReactNode) {
+  return error ? `${name}-error` : hint ? `${name}-hint` : undefined;
+}
+
+export function TextField({
+  label,
+  name,
+  error,
+  hint,
+  required,
+  className,
+  ...props
+}: FieldProps & Omit<ComponentProps<"input">, "name">) {
+  return (
+    <FieldShell label={label} name={name} error={error} hint={hint} required={required} className={className}>
+      <input
+        id={name}
+        name={name}
+        required={required}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(name, error, hint)}
+        className={cn(control, "h-11 border-edge-strong")}
+        {...props}
+      />
+    </FieldShell>
+  );
+}
+
+export function TextAreaField({
+  label,
+  name,
+  error,
+  hint,
+  required,
+  className,
+  ...props
+}: FieldProps & Omit<ComponentProps<"textarea">, "name">) {
+  return (
+    <FieldShell label={label} name={name} error={error} hint={hint} required={required} className={className}>
+      <textarea
+        id={name}
+        name={name}
+        required={required}
+        rows={4}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(name, error, hint)}
+        className={cn(control, "resize-y border-edge-strong py-2.5")}
+        {...props}
+      />
+    </FieldShell>
+  );
+}
+
+export function SelectField({
+  label,
+  name,
+  error,
+  hint,
+  required,
+  className,
+  options,
+  ...props
+}: FieldProps & Omit<ComponentProps<"select">, "name"> & { options: readonly { value: string; label: string }[] }) {
+  return (
+    <FieldShell label={label} name={name} error={error} hint={hint} required={required} className={className}>
+      <select
+        id={name}
+        name={name}
+        required={required}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(name, error, hint)}
+        className={cn(control, "h-11 border-edge-strong px-2.5")}
+        {...props}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </FieldShell>
+  );
+}
+
+export function CheckboxField({ label, name, defaultChecked }: { label: string; name: string; defaultChecked?: boolean }) {
+  return (
+    <label className="flex min-h-11 cursor-pointer items-center gap-2.5">
+      <input type="checkbox" name={name} defaultChecked={defaultChecked} className="size-[18px] accent-fg" />
+      {label}
+    </label>
+  );
+}
+
+/** Off-screen field bots fill in and people never see. */
+export function Honeypot() {
+  return (
+    <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
+      <label>
+        Website
+        <input type="text" name="website" tabIndex={-1} autoComplete="off" />
+      </label>
+    </div>
+  );
+}
+
+export function FormMessage({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <p role="alert" className="rounded border-2 border-danger bg-surface px-4 py-3 text-sm font-medium text-danger">
+      {message}
+    </p>
+  );
+}

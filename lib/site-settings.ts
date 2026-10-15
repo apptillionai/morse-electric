@@ -1,0 +1,66 @@
+import "server-only";
+
+import { cache } from "react";
+import { EMPTY_BUSINESS, toBusiness, type Business, type BusinessDetails } from "@/lib/business";
+import { FALLBACK_DEFAULT_THEME, isDefaultTheme, type DefaultTheme } from "@/lib/theme";
+
+export const SITE_SETTINGS_TAG = "site-settings";
+
+export interface SiteSettings {
+  defaultTheme: DefaultTheme;
+  business: BusinessDetails;
+}
+
+const FALLBACK: SiteSettings = { defaultTheme: FALLBACK_DEFAULT_THEME, business: EMPTY_BUSINESS };
+
+interface SettingsRow {
+  default_theme?: unknown;
+  phone?: string | null;
+  email?: string | null;
+  street?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postal_code?: string | null;
+  hours?: string | null;
+  service_area?: string | null;
+}
+
+/**
+ * Site-wide settings, read with the public key through Next's fetch cache so
+ * static pages stay static. Saving in /admin/settings expires the tag.
+ */
+export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) return FALLBACK;
+  try {
+    const response = await fetch(`${url.replace(/\/$/, "")}/rest/v1/site_settings?select=*&id=eq.1`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      next: { tags: [SITE_SETTINGS_TAG], revalidate: 3600 },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!response.ok) return FALLBACK;
+    const [row] = (await response.json()) as SettingsRow[];
+    if (!row) return FALLBACK;
+    return {
+      defaultTheme: isDefaultTheme(row.default_theme) ? row.default_theme : FALLBACK.defaultTheme,
+      business: {
+        phone: row.phone ?? null,
+        email: row.email ?? null,
+        street: row.street ?? null,
+        city: row.city ?? null,
+        state: row.state ?? null,
+        postalCode: row.postal_code ?? null,
+        hours: row.hours ?? null,
+        serviceArea: row.service_area ?? null,
+      },
+    };
+  } catch {
+    return FALLBACK;
+  }
+});
+
+/** Phone, email, address, hours and service area as the site displays them. */
+export async function getBusiness(): Promise<Business> {
+  return toBusiness((await getSiteSettings()).business);
+}

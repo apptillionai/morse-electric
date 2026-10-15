@@ -1,0 +1,75 @@
+import { CircleUser, Search } from "lucide-react";
+import Link from "next/link";
+import { ButtonLink } from "@/components/ui/button";
+import { getBusiness } from "@/lib/site-settings";
+import { Logo } from "./logo";
+import { NavLinks } from "./nav-links";
+import { ThemeChooser } from "./theme-chooser";
+
+/** The shop phone number from /admin/settings, linked when it looks dialable. */
+export async function PhoneLink({ className }: { className?: string }) {
+  const { phone, phoneHref } = await getBusiness();
+  return phoneHref ? (
+    <a href={phoneHref} className={className}>
+      {phone}
+    </a>
+  ) : (
+    <span className={className}>{phone}</span>
+  );
+}
+
+export async function SiteHeader() {
+  const business = await getBusiness();
+  return (
+    <>
+      {/* Focus target for the back-to-top button. */}
+      <div id="top" tabIndex={-1} className="bg-inverse text-[13px] text-on-inverse-muted outline-none">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-1.5 px-6 py-2">
+          <span>
+            <strong className="font-semibold text-on-inverse-accent">24/7 emergency motor service</strong> · Call{" "}
+            <PhoneLink className="text-on-inverse" />
+          </span>
+          <span className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+            <span>
+              {business.hours} · {business.street}, {business.cityStateZip}
+            </span>
+            <Link href="/account" className="inline-flex items-center gap-1.5 font-semibold text-on-inverse no-underline hover:text-on-inverse-accent">
+              <CircleUser size={16} aria-hidden="true" />
+              Customer login
+            </Link>
+            <ThemeChooser />
+          </span>
+        </div>
+      </div>
+
+      <header className="border-b border-edge bg-surface">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-8 gap-y-3.5 px-6 py-3.5">
+          <Logo />
+          <NavLinks />
+          <form role="search" action="/shop" className="flex min-w-0 flex-[1_1_240px]">
+            <label htmlFor="site-search" className="sr-only">
+              Search parts
+            </label>
+            <input
+              id="site-search"
+              name="q"
+              type="search"
+              placeholder="Part #, HP, frame…"
+              className="h-11 min-w-0 flex-1 rounded-l border border-r-0 border-edge-strong bg-surface px-3.5 text-[15px] placeholder:text-fg-muted"
+            />
+            <button
+              type="submit"
+              aria-label="Search"
+              className="flex h-11 w-12 items-center justify-center rounded-r bg-bold text-on-bold"
+            >
+              <Search size={20} aria-hidden="true" />
+            </button>
+          </form>
+          <ButtonLink href="/service#request" size="sm">
+            Request service
+          </ButtonLink>
+        </div>
+      </header>
+    </>
+  );
+}
