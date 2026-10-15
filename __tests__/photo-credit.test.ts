@@ -48,6 +48,11 @@ describe("commonsCredit", () => {
     expect(commonsCredit(metadata({ License: "cc-by-3.0" }), SOURCE)).toEqual({ ok: false, reason: "no author to credit" });
   });
 
+  it("drops a wiki User: prefix from the author", () => {
+    const result = commonsCredit(metadata({ License: "cc-by-sa-3.0", Artist: "User:Ann" }), SOURCE);
+    expect(result.ok && result.credit.author).toBe("Ann");
+  });
+
   it("warns about trademarks", () => {
     const result = commonsCredit(metadata({ License: "cc0", Artist: "Ann", Restrictions: "trademarked" }), SOURCE);
     expect(result.ok && result.warnings).toEqual([expect.stringContaining("trademark")]);

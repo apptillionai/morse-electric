@@ -72,7 +72,8 @@ export function commonsCredit(metadata: CommonsMetadata, descriptionUrl: string)
   }
 
   const isPublicDomain = /^(pd|cc0|cc-zero)/i.test(licenseCode);
-  const author = htmlToText(meta(metadata, "Artist")) || htmlToText(meta(metadata, "Credit"));
+  // Commons sometimes gives a bare wiki username ("User:Ann").
+  const author = (htmlToText(meta(metadata, "Artist")) || htmlToText(meta(metadata, "Credit"))).replace(/^User:/i, "");
   if (!author && !isPublicDomain) return { ok: false, reason: "no author to credit" };
 
   const warnings: string[] = [];
