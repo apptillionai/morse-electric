@@ -2,7 +2,7 @@
 -- Run with `supabase test db` against a local stack.
 begin;
 create extension if not exists pgtap;
-select plan(17);
+select plan(20);
 
 insert into public.categories (id, slug, name)
 values ('a1000000-0000-4000-8000-000000000001', 'electric-motors', 'Electric motors');
@@ -14,10 +14,22 @@ values
   ('b1000000-0000-4000-8000-000000000002', 'TEST-DRAFT', 'test-draft', 'Draft motor',
    'a1000000-0000-4000-8000-000000000001', 'draft');
 
-insert into public.product_images (product_id, storage_path)
+insert into public.product_images (product_id, storage_path, credit)
 values
-  ('b1000000-0000-4000-8000-000000000001', 'active.jpg'),
-  ('b1000000-0000-4000-8000-000000000002', 'draft.jpg');
+  ('b1000000-0000-4000-8000-000000000001', 'active.jpg',
+   '{"author": "A. Photographer", "license": "CC BY-SA 4.0", "sourceUrl": "https://commons.wikimedia.org/wiki/File:Motor.jpg"}'),
+  ('b1000000-0000-4000-8000-000000000002', 'draft.jpg', null);
+
+select throws_ok(
+  $$insert into public.product_images (product_id, storage_path, credit)
+    values ('b1000000-0000-4000-8000-000000000001', 'x.jpg', '{"author": "A. Photographer"}')$$,
+  '23514', null, 'a stock photo credit needs an author, license and source'
+);
+select throws_ok(
+  $$insert into public.product_images (product_id, storage_path, credit)
+    values ('b1000000-0000-4000-8000-000000000001', 'x.jpg', '"CC BY"')$$,
+  '23514', null, 'a stock photo credit must be an object'
+);
 
 insert into public.inventory (product_id, qty_on_hand)
 values ('b1000000-0000-4000-8000-000000000001', 3);
@@ -53,6 +65,7 @@ set local role anon;
 select is((select count(*)::int from public.products), 1, 'anon sees only active products');
 select is((select sku from public.products), 'TEST-ACTIVE', 'the visible product is the active one');
 select is((select count(*)::int from public.product_images), 1, 'anon sees only images of active products');
+select is((select credit->>'author' from public.product_images), 'A. Photographer', 'anon can read stock photo credits');
 select is((select count(*)::int from public.categories), 1, 'anon can read categories');
 select throws_ok('select * from public.inventory', '42501', null, 'anon cannot read inventory quantities');
 select throws_ok('select * from public.quote_requests', '42501', null, 'anon cannot read quote requests');

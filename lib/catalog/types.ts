@@ -1,3 +1,5 @@
+import type { PhotoCredit } from "./photo-credit";
+
 export const PRODUCT_CONDITIONS = ["new", "remanufactured", "used_tested", "exchange"] as const;
 export type ProductCondition = (typeof PRODUCT_CONDITIONS)[number];
 
@@ -56,6 +58,8 @@ export interface ProductDocument {
 export interface ProductImage {
   url: string;
   alt: string;
+  /** Set on stock photos that stand in for the real unit; null for Morse's own photos. */
+  credit: PhotoCredit | null;
 }
 
 export interface ProductDetail extends ProductSummary {

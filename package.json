@@ -10,7 +10,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed:catalog": "tsx --env-file=.env.local scripts/seed-catalog.ts"
+    "seed:catalog": "tsx --env-file=.env.local scripts/seed-catalog.ts",
+    "seed:photos": "tsx --env-file-if-exists=.env.local scripts/seed-photos.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

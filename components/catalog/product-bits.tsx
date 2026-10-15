@@ -1,5 +1,6 @@
 import { Check, Clock } from "lucide-react";
 import Image from "next/image";
+import type { PhotoCredit } from "@/lib/catalog/photo-credit";
 import { CONDITION_LABELS, ENCLOSURE_LABELS, type ProductSummary } from "@/lib/catalog/types";
 import { cn, formatHp, formatPrice } from "@/lib/utils";
 
@@ -71,5 +72,24 @@ export function ProductPhoto({
     <div className={cn("photo-placeholder flex items-center justify-center text-[13px] text-fg-muted", className)}>
       {label}
     </div>
+  );
+}
+
+/** Caption for stock photos: says they're representative and credits them as their licenses require. */
+export function PhotoCredits({ credits: all }: { credits: PhotoCredit[] }) {
+  const credits = all.filter((c, i) => all.findIndex((o) => o.sourceUrl === c.sourceUrl) === i);
+  if (!credits.length) return null;
+  return (
+    <p className="text-[13px] text-fg-muted">
+      {credits.length === 1 ? "Representative photo" : "Representative photos"}; the unit you get may look different.{" "}
+      {credits.map((c, i) => (
+        <span key={c.sourceUrl}>
+          {i > 0 && "; "}
+          Photo: <a href={c.sourceUrl}>{c.author}</a>,{" "}
+          {c.licenseUrl ? <a href={c.licenseUrl}>{c.license}</a> : c.license}
+        </span>
+      ))}
+      .
+    </p>
   );
 }

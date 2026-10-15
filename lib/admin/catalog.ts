@@ -145,19 +145,21 @@ export interface AdminProductImage {
   id: string;
   storagePath: string;
   alt: string;
+  /** A credited stand-in photo (`npm run seed:photos`) rather than one staff uploaded. */
+  stock: boolean;
 }
 
 export async function getProduct(supabase: SupabaseClient, id: string) {
   const [product, images] = await Promise.all([
     supabase.from("products").select(PRODUCT_SELECT).eq("id", id).maybeSingle(),
-    supabase.from("product_images").select("id, storage_path, alt").eq("product_id", id).order("sort_order"),
+    supabase.from("product_images").select("id, storage_path, alt, credit").eq("product_id", id).order("sort_order"),
   ]);
   if (product.error) throw new Error(`Product: ${product.error.message}`);
   if (images.error) throw new Error(`Images: ${images.error.message}`);
   if (!product.data) return null;
   return {
     product: toAdminProduct(product.data as unknown as ProductRow),
-    images: images.data.map((i): AdminProductImage => ({ id: i.id, storagePath: i.storage_path, alt: i.alt })),
+    images: images.data.map((i): AdminProductImage => ({ id: i.id, storagePath: i.storage_path, alt: i.alt, stock: i.credit !== null })),
   };
 }
 
