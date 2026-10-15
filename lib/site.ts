@@ -9,6 +9,7 @@ export const PRIMARY_URL = "https://morseelectricmotor.com";
 export const SITE = {
   name: "Morse Electric Motor Co.",
   legalName: "Morse Electric Motor Company",
+  parentCompany: "ALP Associates Inc.",
   url: (process.env.NEXT_PUBLIC_SITE_URL ?? PRIMARY_URL).replace(/\/$/, ""),
 } as const;
 
