@@ -54,7 +54,9 @@ export async function SiteFooter() {
         </nav>
       </div>
       <div className="mx-auto flex max-w-7xl flex-wrap justify-between gap-2 border-t border-inverse-edge px-6 py-5 text-[13px]">
-        <span>© {new Date().getFullYear()} {SITE.legalName}</span>
+        <span>
+          © {new Date().getFullYear()} {SITE.legalName}, a subsidiary of {SITE.parentCompany}
+        </span>
         <span>{business.hours}</span>
       </div>
     </footer>
