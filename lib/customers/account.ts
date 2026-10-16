@@ -28,6 +28,8 @@ export interface CustomerProfile {
   tax_exempt: boolean;
   tax_cert_path: string | null;
   tax_cert_uploaded_at: string | null;
+  /** Set by checkout; never shown to the customer. */
+  stripe_customer_id: string | null;
   created_at: string;
 }
 

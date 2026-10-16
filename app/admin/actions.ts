@@ -19,6 +19,7 @@ import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { SITE_SETTINGS_TAG } from "@/lib/site-settings";
 import { isDefaultTheme } from "@/lib/theme";
 import { BUSINESS_FIELDS, businessSchema } from "@/lib/business";
+import { parseRateRows, RATE_FIELDS } from "@/lib/orders/settings";
 import { createSessionClient } from "@/lib/supabase/server";
 
 // Every action re-checks staff access: server actions are reachable by POST
@@ -374,15 +375,28 @@ export interface SettingsState {
 
 export async function saveSettingsAction(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
   const staff = await requireStaff();
-  const values = formFields(formData, ["default_theme", ...BUSINESS_FIELDS] as const);
+  const values = formFields(formData, ["default_theme", "store_enabled", ...BUSINESS_FIELDS, ...RATE_FIELDS] as const);
   const theme = values.default_theme;
   if (!isDefaultTheme(theme)) return { error: "Choose a default theme.", values };
   const business = businessSchema.safeParse(values);
-  if (!business.success) return { error: "Check the highlighted fields.", fieldErrors: fieldErrors(business.error), values };
+  const rates = parseRateRows(values);
+  if (!business.success || !rates.ok) {
+    return {
+      error: "Check the highlighted fields.",
+      fieldErrors: { ...(business.success ? {} : fieldErrors(business.error)), ...(rates.ok ? {} : rates.errors) },
+      values,
+    };
+  }
   const supabase = await createSessionClient();
   const { error } = await supabase
     .from("site_settings")
-    .update({ default_theme: theme, ...business.data, updated_by: staff.id })
+    .update({
+      default_theme: theme,
+      ...business.data,
+      store_enabled: values.store_enabled === "on",
+      shipping_rates: rates.rates,
+      updated_by: staff.id,
+    })
     .eq("id", 1);
   if (error) return { error: `Couldn’t save: ${error.message}` };
   // Every page reads these through the root layout, header and footer.

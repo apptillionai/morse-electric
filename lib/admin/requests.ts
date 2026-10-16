@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ORDER_STATUS_LABELS } from "@/lib/orders/types";
 import type { EquipmentType } from "@/lib/requests/schemas";
 
 export const QUOTE_STATUSES = ["new", "quoted", "won", "lost", "spam"] as const;
@@ -29,6 +30,7 @@ export const STATUS_LABELS: Record<string, string> = {
   ready: "Ready",
   delivered: "Delivered",
   closed: "Closed",
+  ...ORDER_STATUS_LABELS,
 };
 
 export interface QuoteRequest {

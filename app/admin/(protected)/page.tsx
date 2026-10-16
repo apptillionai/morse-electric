@@ -1,6 +1,7 @@
-import { AlertTriangle, ClipboardList, FileUp, Package, Wrench } from "lucide-react";
+import { AlertTriangle, ClipboardList, FileUp, Package, ShoppingCart, Wrench } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/admin-shell";
+import { orderCounts } from "@/lib/admin/orders";
 import { dashboardCounts } from "@/lib/admin/requests";
 import { staffClient } from "@/lib/admin/auth";
 
@@ -20,11 +21,20 @@ function Tile({ href, label, value, note, icon: Icon, tone }: { href: string; la
 }
 
 export default async function DashboardPage() {
-  const counts = await dashboardCounts(await staffClient());
+  const supabase = await staffClient();
+  const [counts, orders] = await Promise.all([dashboardCounts(supabase), orderCounts(supabase)]);
   return (
     <>
       <PageHeader title="Dashboard" description="What needs attention today." />
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
+        <Tile
+          href="/admin/orders"
+          label="Orders to fulfil"
+          value={orders.toFulfil}
+          note={[orders.readyForPickup && `${orders.readyForPickup} waiting for pickup`, orders.awaitingPayment && `${orders.awaitingPayment} awaiting bank payment`].filter(Boolean).join(" · ") || undefined}
+          icon={ShoppingCart}
+          tone="warn"
+        />
         <Tile href="/admin/quotes" label="New quote requests" value={counts.newQuotes} icon={ClipboardList} tone="warn" />
         <Tile href="/admin/service" label="Open service jobs" value={counts.openService} note={counts.rushService ? `${counts.rushService} marked rush` : undefined} icon={Wrench} tone="warn" />
         <Tile href="/admin/products?status=active" label="Active products" value={counts.activeProducts} note={counts.drafts ? `${counts.drafts} drafts` : undefined} icon={Package} />

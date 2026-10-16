@@ -5,17 +5,36 @@ import { saveSettingsAction, type SettingsState } from "@/app/admin/actions";
 import { FormMessage, TextField } from "@/components/forms/fields";
 import { Button } from "@/components/ui/button";
 import type { BusinessField } from "@/lib/business";
+import { RATE_ROWS } from "@/lib/orders/settings";
 import { DEFAULT_THEME_LABELS, DEFAULT_THEME_OPTIONS, type DefaultTheme } from "@/lib/theme";
 
 const legend = "mb-1 font-display text-xl font-bold uppercase tracking-[0.04em]";
 
-export function SettingsForm({ defaultTheme, business }: { defaultTheme: DefaultTheme; business: Record<BusinessField, string> }) {
+export interface StoreSettings {
+  enabled: boolean;
+  /** rate_lb_N / rate_price_N form values. */
+  rates: Record<string, string>;
+  /** Which Stripe keys are missing on the server, if any. */
+  missing: string[];
+}
+
+export function SettingsForm({
+  defaultTheme,
+  business,
+  store,
+}: {
+  defaultTheme: DefaultTheme;
+  business: Record<BusinessField, string>;
+  store: StoreSettings;
+}) {
   const [state, action, pending] = useActionState(saveSettingsAction, {} as SettingsState);
   const v = (f: BusinessField) => state.values?.[f] ?? business[f];
   const e = state.fieldErrors ?? {};
   // Re-mount with the submitted values after an error so radios and fields keep what was typed.
   const key = state.values ? JSON.stringify(state) : "initial";
   const theme = (state.values?.default_theme as DefaultTheme | undefined) ?? defaultTheme;
+  const storeOn = state.values ? state.values.store_enabled === "on" : store.enabled;
+  const rate = (f: string) => state.values?.[f] ?? store.rates[f] ?? "";
 
   return (
     <form action={action} key={key} className="flex max-w-3xl flex-col gap-6" noValidate>
@@ -44,6 +63,39 @@ export function SettingsForm({ defaultTheme, business }: { defaultTheme: Default
           hint="Finishes the sentence “Pickup available within …”, e.g. 75 miles of Gardner"
           className="sm:col-span-2"
         />
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-4 rounded-md border border-edge bg-surface p-6" aria-describedby="store-hint">
+        <legend className={legend}>Online store</legend>
+        <p id="store-hint" className="text-sm text-fg-muted">
+          When the store is on, priced in-stock items that ship by parcel or are collected get an “Add to cart” button,
+          and customers pay by card or bank transfer through Stripe. Everything else stays “Request a quote”. Items with a
+          core charge and freight items can’t be bought online yet.
+        </p>
+        {store.missing.length > 0 && (
+          <p role="note" className="rounded border-2 border-warn px-4 py-3 text-sm">
+            Checkout won’t open until {store.missing.join(" and ")} {store.missing.length === 1 ? "is" : "are"} set in Vercel.
+          </p>
+        )}
+        <label className="flex min-h-11 cursor-pointer items-center gap-3 font-semibold">
+          <input type="checkbox" name="store_enabled" defaultChecked={storeOn} className="size-[18px] accent-fg" />
+          Take orders online
+        </label>
+        <div className="flex flex-col gap-2">
+          <span className="font-semibold">Parcel shipping by order weight</span>
+          <span className="text-sm text-fg-muted">
+            Each row is “orders up to this weight cost this much”. Heavier orders, and anything without a weight on file,
+            can only be picked up. Pickup is always free.
+          </span>
+          <div className="grid max-w-md grid-cols-2 gap-x-4 gap-y-2">
+            {Array.from({ length: RATE_ROWS }, (_, i) => (
+              <div key={i} className="contents">
+                <TextField label="Up to (lb)" name={`rate_lb_${i}`} inputMode="decimal" defaultValue={rate(`rate_lb_${i}`)} error={e[`rate_lb_${i}`]} />
+                <TextField label="Price ($)" name={`rate_price_${i}`} inputMode="decimal" defaultValue={rate(`rate_price_${i}`)} error={e[`rate_price_${i}`]} />
+              </div>
+            ))}
+          </div>
+        </div>
       </fieldset>
 
       <fieldset className="flex flex-col gap-2 rounded-md border border-edge bg-surface p-6" aria-describedby="theme-hint">

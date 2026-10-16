@@ -2,6 +2,8 @@ import { PageHeader } from "@/components/admin/admin-shell";
 import { SettingsForm } from "@/components/admin/settings-form";
 import { staffClient } from "@/lib/admin/auth";
 import { BUSINESS_FIELDS, type BusinessField } from "@/lib/business";
+import { parseShippingRates } from "@/lib/orders/pricing";
+import { rateRowValues } from "@/lib/orders/settings";
 import { FALLBACK_DEFAULT_THEME, isDefaultTheme } from "@/lib/theme";
 
 export const metadata = { title: "Settings" };
@@ -17,7 +19,15 @@ export default async function SettingsPage() {
   return (
     <>
       <PageHeader title="Settings" description="Business details and options for the public website." />
-      <SettingsForm defaultTheme={current} business={business} />
+      <SettingsForm
+        defaultTheme={current}
+        business={business}
+        store={{
+          enabled: row.store_enabled === true,
+          rates: rateRowValues(parseShippingRates(row.shipping_rates)),
+          missing: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"].filter((k) => !process.env[k]),
+        }}
+      />
     </>
   );
 }

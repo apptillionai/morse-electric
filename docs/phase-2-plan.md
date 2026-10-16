@@ -116,7 +116,7 @@ Each step is its own PR. Every PR passes `npm run lint`, `npm run typecheck`, `n
 | Step | Ships | Depends on |
 | --- | --- | --- |
 | 0 | Photo uploads on the public forms ✅; policy pages with placeholder wording (terms of sale, returns, shipping, warranty, privacy) ✅; Stripe account in test mode (Morse sets this up) | — |
-| 1 | Cart, card/ACH checkout for parcel and pickup items, orders, webhook, stock reservations, emails, `/admin/orders`, `/account/orders`, store switch and shipping settings | Step 0 |
+| 1 | Cart, card/ACH checkout for parcel and pickup items, orders, webhook, stock reservations, emails, `/admin/orders`, `/account/orders`, store switch and shipping settings ✅ (items with a core charge stay quote-only until step 2) | Step 0 |
 | 2 | Core charges at checkout, core returns tracking, refunds and credits, reminders | Step 1 |
 | 3 | Net-30 terms, credit limits, Stripe Invoicing, the "Request a business account" form | Step 1 |
 | 4 | Payable quotes; online repair approval and payment | Step 1 (Step 3 for paying on terms) |

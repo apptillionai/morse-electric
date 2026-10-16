@@ -22,11 +22,35 @@ Quote and service requests are stored in Supabase with a reference number (`Q-10
 
 Every page has a **Light / Mid / Dark** theme switch in the top bar. The choice is saved in the browser. First-time visitors get the site default, which staff set at **/admin/settings** (Light out of the box; Mid, Dark or "match the device" are the other options). Colours are semantic tokens in `app/globals.css`; `__tests__/theme-contrast.test.ts` fails the build if any text or control pair drops below WCAG AA contrast in any theme.
 
+## Online store (Phase 2)
+
+Customers can buy in-stock items online and pay by card (including Apple Pay and Google Pay) or by ACH bank transfer through Stripe Checkout. The store stays off until staff switch it on at **/admin/settings**, and checkout also needs the Stripe keys.
+
+| Route | What it does |
+| --- | --- |
+| `/cart` | The cart: change quantities, choose shipping or free pickup, check out. Works without JavaScript. |
+| `/checkout/success` | The order confirmation Stripe returns customers to |
+| `/account/orders` | A signed-in customer's orders, with status, tracking and "Order again" |
+| `/admin/orders` | Orders to fulfil: mark as being prepared, shipped (with tracking) or ready for pickup, then completed; cancel or refund in full; staff notes |
+
+**What can be bought online:** active products with a price, in stock, that ship by parcel or are pickup-only. Items with a core charge (including exchange units) and freight (LTL) items stay "Request a quote" until core charges arrive in step 2.
+
+**Shipping:** staff set parcel rates by order weight at /admin/settings (e.g. up to 10 lb $15, up to 50 lb $45). Pickup is always free. Orders that are heavier than the top band, or that include an item with no weight on file, can only be picked up.
+
+**Stock:** starting checkout reserves the stock for 31 minutes (`inventory.qty_reserved`, so the item can show as out of stock to others). Payment takes it off the shelf, and an abandoned checkout releases it. ACH orders hold their stock while the bank payment clears; a failed payment puts it back. All of this happens in database functions (`supabase/migrations/20261016170000_orders.sql`), so a repeated Stripe event never moves stock twice.
+
+**Setting up Stripe:**
+1. Set `STRIPE_SECRET_KEY` in Vercel. Use a test key (`sk_test_…`) for previews and the live key for production.
+2. In Stripe → Developers → Webhooks, add an endpoint at `https://morseelectricmotor.com/api/stripe/webhook` with these events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`. Put its signing secret in `STRIPE_WEBHOOK_SECRET`.
+3. Turn on Stripe Tax (Settings → Tax): set the shop's origin address and add a Massachusetts registration, plus any other state where Morse collects tax. Checkout calculates tax automatically, and approved tax-exempt customers are marked exempt in Stripe when they check out signed in.
+4. In Settings → Payment methods, turn on cards, Apple Pay / Google Pay and ACH Direct Debit (US bank account).
+5. At /admin/settings, enter the shipping bands and tick **Take orders online**.
+
 ## Staff admin (`/admin`)
 
 | Route | What it does |
 | --- | --- |
-| `/admin` | Dashboard: new quotes, open and rush service jobs, out-of-stock and draft products |
+| `/admin` | Dashboard: orders to fulfil, new quotes, open and rush service jobs, out-of-stock and draft products |
 | `/admin/products` | Search and filter the catalog; add, edit, archive or delete products; photos; stock |
 | `/admin/import` | CSV import with a preview (new, updated, unchanged, problems by row) before anything is saved; template download |
 | `/admin/products/export` | The whole catalog as CSV, in the same format the importer reads |
@@ -55,7 +79,7 @@ Sign-in links use Supabase's **Email OTP expiration** (Authentication → Provid
 
 **CSV import rules:** rows match existing products by SKU (a new SKU creates a product); only the columns present in the file change; new products need a name and category. Common header names (`Part #`, `Horsepower`, `Qty on hand`, …) are recognised, and values like `$1,299`, `7½`, `TEFC` and `3 phase` are understood.
 
-Planned next: Phase 2 (cart, Stripe checkout, core charges, Net-30, payable quotes). See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
+Phase 2 is in progress: the online store is built (step 1); next come core charges, Net-30 and payable quotes. See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
 
 ## Getting started
 

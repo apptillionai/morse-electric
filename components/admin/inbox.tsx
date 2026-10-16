@@ -11,6 +11,12 @@ const TONE: Record<string, string> = {
   closed: "border-edge-strong text-fg-muted",
   lost: "border-edge-strong text-fg-muted",
   spam: "border-edge-strong text-fg-muted",
+  paid: "border-warn text-warn",
+  processing: "border-warn text-warn",
+  shipped: "border-ok text-ok",
+  completed: "border-ok text-ok",
+  cancelled: "border-edge-strong text-fg-muted",
+  refunded: "border-edge-strong text-fg-muted",
 };
 
 export function StatusBadge({ status }: { status: string }) {

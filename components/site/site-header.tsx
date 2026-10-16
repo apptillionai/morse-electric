@@ -1,7 +1,9 @@
 import { CircleUser, Search } from "lucide-react";
 import Link from "next/link";
 import { ButtonLink } from "@/components/ui/button";
+import { storeIsOpen } from "@/lib/orders/store";
 import { getBusiness } from "@/lib/site-settings";
+import { CartLink } from "./cart-link";
 import { Logo } from "./logo";
 import { NavLinks } from "./nav-links";
 import { ThemeChooser } from "./theme-chooser";
@@ -19,7 +21,7 @@ export async function PhoneLink({ className }: { className?: string }) {
 }
 
 export async function SiteHeader() {
-  const business = await getBusiness();
+  const [business, storeOpen] = await Promise.all([getBusiness(), storeIsOpen()]);
   return (
     <>
       {/* Focus target for the back-to-top button. */}
@@ -68,6 +70,7 @@ export async function SiteHeader() {
           <ButtonLink href="/service#request" size="sm">
             Request service
           </ButtonLink>
+          {storeOpen && <CartLink />}
         </div>
       </header>
     </>

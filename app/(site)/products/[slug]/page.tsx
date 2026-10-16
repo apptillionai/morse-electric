@@ -5,7 +5,8 @@ import { notFound } from "next/navigation";
 import { DemoCatalogBanner } from "@/components/catalog/demo-banner";
 import { PhotoCredits, PriceLabel, ProductPhoto, StockStatus, specLine } from "@/components/catalog/product-bits";
 import { PhoneLink } from "@/components/site/site-header";
-import { ButtonLink } from "@/components/ui/button";
+import { addToCartAction } from "@/app/actions/cart";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { getCatalog } from "@/lib/catalog";
 import {
   CONDITION_LABELS,
@@ -13,6 +14,8 @@ import {
   POWER_LABELS,
   type ProductDetail,
 } from "@/lib/catalog/types";
+import { onlinePurchaseBlock } from "@/lib/orders/pricing";
+import { storeIsOpen } from "@/lib/orders/store";
 import { SITE } from "@/lib/site";
 import { getBusiness } from "@/lib/site-settings";
 import { cn, formatHp, formatPrice } from "@/lib/utils";
@@ -98,6 +101,13 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
   const quoteHref = `/quote?sku=${encodeURIComponent(product.sku)}`;
   const core = formatPrice(product.coreChargeCents);
   const business = await getBusiness();
+  // Buyable online: the store is open, and the item is priced, in stock, and
+  // ships by parcel or is collected (everything else stays quote-only).
+  const buyable =
+    !catalog.isDemo &&
+    product.inStock &&
+    (await storeIsOpen()) &&
+    onlinePurchaseBlock({ ...product, active: true }) === null;
 
   return (
     <>
@@ -195,16 +205,47 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
               </span>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <ButtonLink href={quoteHref} size="lg" className="flex-[1_1_200px]">
-                {product.priceCents === null ? "Request price & availability" : "Request a quote"}
-              </ButtonLink>
-              {business.phoneHref && (
-                <ButtonLink href={business.phoneHref} variant="outline" size="lg">
-                  Call {business.phone}
+            {buyable ? (
+              <div className="flex flex-col gap-3">
+                <form action={addToCartAction} className="flex flex-wrap items-end gap-3">
+                  <input type="hidden" name="productId" value={product.id} />
+                  <label className="flex flex-col gap-1 text-sm font-semibold">
+                    Qty
+                    <input
+                      type="number"
+                      name="quantity"
+                      min={1}
+                      max={99}
+                      defaultValue={1}
+                      className="h-14 w-20 rounded border border-edge-strong bg-surface px-3 text-base font-normal"
+                    />
+                  </label>
+                  <Button type="submit" size="lg" className="flex-[1_1_200px]">
+                    Add to cart
+                  </Button>
+                </form>
+                <p className="text-sm text-fg-muted">
+                  Need several, or account pricing? <Link href={quoteHref}>Request a quote</Link>
+                  {business.phoneHref && (
+                    <>
+                      {" "}or call <a href={business.phoneHref}>{business.phone}</a>
+                    </>
+                  )}
+                  .
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                <ButtonLink href={quoteHref} size="lg" className="flex-[1_1_200px]">
+                  {product.priceCents === null ? "Request price & availability" : "Request a quote"}
                 </ButtonLink>
-              )}
-            </div>
+                {business.phoneHref && (
+                  <ButtonLink href={business.phoneHref} variant="outline" size="lg">
+                    Call {business.phone}
+                  </ButtonLink>
+                )}
+              </div>
+            )}
             <p className="text-sm text-fg-muted">
               Volume or account pricing? Mention it in your request, or call <PhoneLink />.
             </p>
