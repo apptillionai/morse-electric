@@ -4,7 +4,7 @@
 -- Run with `supabase test db`.
 begin;
 create extension if not exists pgtap;
-select plan(43);
+select plan(62);
 
 insert into auth.users (id, email) values
   ('a1000000-0000-4000-8000-000000000001', 'staff@example.invalid'),
@@ -17,10 +17,12 @@ insert into public.customers (user_id, email, name) values
 insert into public.categories (id, slug, name) values ('b1000000-0000-4000-8000-000000000001', 'motors', 'Motors');
 insert into public.products (id, sku, slug, name, category_id, price_cents, status) values
   ('c1000000-0000-4000-8000-00000000000a', 'A-1', 'a-1', 'Motor A', 'b1000000-0000-4000-8000-000000000001', 10000, 'active'),
-  ('c1000000-0000-4000-8000-00000000000b', 'B-1', 'b-1', 'Motor B', 'b1000000-0000-4000-8000-000000000001', 20000, 'active');
+  ('c1000000-0000-4000-8000-00000000000b', 'B-1', 'b-1', 'Motor B', 'b1000000-0000-4000-8000-000000000001', 20000, 'active'),
+  ('c1000000-0000-4000-8000-00000000000c', 'C-1', 'c-1', 'Reman motor C', 'b1000000-0000-4000-8000-000000000001', 30000, 'active');
 insert into public.inventory (product_id, qty_on_hand) values
   ('c1000000-0000-4000-8000-00000000000a', 5),
-  ('c1000000-0000-4000-8000-00000000000b', 1);
+  ('c1000000-0000-4000-8000-00000000000b', 1),
+  ('c1000000-0000-4000-8000-00000000000c', 10);
 
 create function pg_temp.new_order(p_id uuid, p_customer uuid, p_product uuid, p_qty integer)
 returns void language sql as $$
@@ -83,6 +85,35 @@ select public.place_order('d1000000-0000-4000-8000-000000000006', 'pending_payme
 select ok(public.fail_order_payment('d1000000-0000-4000-8000-000000000006'), 'a failed debit cancels the order');
 select is(pg_temp.stock('c1000000-0000-4000-8000-00000000000a'), '1/0', 'and puts its stock back');
 
+-- Cores --------------------------------------------------------------------
+create function pg_temp.new_core_order(p_id uuid, p_customer uuid, p_qty integer)
+returns void language sql as $$
+  select pg_temp.new_order(p_id, p_customer, 'c1000000-0000-4000-8000-00000000000c', p_qty);
+  update public.order_items set core_charge_cents = 5000 where order_id = p_id;
+  update public.orders set core_cents = 5000 * p_qty where id = p_id;
+$$;
+update public.site_settings set core_return_days = 10 where id = 1;
+select pg_temp.new_core_order('d1000000-0000-4000-8000-000000000007', 'a1000000-0000-4000-8000-000000000002', 2);
+select public.reserve_order_stock('d1000000-0000-4000-8000-000000000007');
+select is((select count(*)::int from public.core_returns), 0, 'no core is owed before the order is placed');
+select ok(public.place_order('d1000000-0000-4000-8000-000000000007', 'paid'), 'an order with a core is placed');
+select is(
+  (select status::text || ' ' || quantity || ' x ' || core_charge_cents from public.core_returns where order_id = 'd1000000-0000-4000-8000-000000000007'),
+  'awaiting 2 x 5000', 'placing opens a core return for the item'
+);
+select is(
+  (select due_date from public.core_returns where order_id = 'd1000000-0000-4000-8000-000000000007'),
+  (now() at time zone 'America/New_York')::date + 10, 'the core is due back after the return window in settings'
+);
+select pg_temp.new_order('d1000000-0000-4000-8000-000000000009', null, 'c1000000-0000-4000-8000-00000000000a', 1);
+select public.reserve_order_stock('d1000000-0000-4000-8000-000000000009');
+select public.place_order('d1000000-0000-4000-8000-000000000009', 'paid');
+select is((select count(*)::int from public.core_returns where order_id = 'd1000000-0000-4000-8000-000000000009'), 0, 'items without a core charge owe no core');
+
+select pg_temp.new_core_order('d1000000-0000-4000-8000-000000000008', null, 1);
+select public.reserve_order_stock('d1000000-0000-4000-8000-000000000008');
+select public.place_order('d1000000-0000-4000-8000-000000000008', 'paid');
+
 insert into public.order_notes (order_id, notes) values ('d1000000-0000-4000-8000-000000000001', 'Ships Friday');
 insert into public.stripe_events (id, type) values ('evt_1', 'checkout.session.completed');
 
@@ -90,8 +121,10 @@ insert into public.stripe_events (id, type) values ('evt_1', 'checkout.session.c
 set local role authenticated;
 set local "request.jwt.claims" to '{"sub":"a1000000-0000-4000-8000-000000000002"}';
 
-select is((select count(*)::int from public.orders), 2, 'a customer sees only their own orders');
-select is((select count(*)::int from public.order_items), 2, 'a customer sees only items on their own orders');
+select is((select count(*)::int from public.orders), 3, 'a customer sees only their own orders');
+select is((select count(*)::int from public.order_items), 3, 'a customer sees only items on their own orders');
+select is((select count(*)::int from public.core_returns), 1, 'a customer sees only the cores on their own orders');
+update public.core_returns set status = 'credited', credit_cents = 10000 where order_id = 'd1000000-0000-4000-8000-000000000007';
 select is((select count(*)::int from public.order_notes), 0, 'a customer cannot read staff notes on orders');
 select throws_ok('select * from public.stripe_events', '42501', null, 'a customer cannot read webhook events');
 update public.orders set status = 'shipped', total_cents = 1 where id = 'd1000000-0000-4000-8000-000000000001';
@@ -117,18 +150,56 @@ select is(
   (select stripe_customer_id from public.customers where user_id = 'a1000000-0000-4000-8000-000000000002'), null,
   'a customer cannot set their Stripe customer'
 );
+select is(
+  (select status::text from public.core_returns where order_id = 'd1000000-0000-4000-8000-000000000007'), 'awaiting',
+  'a customer cannot mark their own core credited'
+);
 
 -- Anonymous -------------------------------------------------------------------
 set local role anon;
 select throws_ok('select * from public.orders', '42501', null, 'anon cannot read orders');
 select throws_ok('select * from public.order_items', '42501', null, 'anon cannot read order items');
+select throws_ok('select * from public.core_returns', '42501', null, 'anon cannot read core returns');
 
 -- Staff -----------------------------------------------------------------------
 reset role;
 set local role authenticated;
 set local "request.jwt.claims" to '{"sub":"a1000000-0000-4000-8000-000000000001"}';
 
-select is((select count(*)::int from public.orders), 6, 'staff see every order');
+select is((select count(*)::int from public.orders), 9, 'staff see every order');
+select is((select count(*)::int from public.core_returns), 2, 'staff see every core');
+select throws_ok(
+  $$update public.core_returns set status = 'credited', credit_cents = 10000 where order_id = 'd1000000-0000-4000-8000-000000000007'$$,
+  '42501', null, 'a core must be received before it is credited'
+);
+update public.core_returns set status = 'received', core_charge_cents = 1, quantity = 9 where order_id = 'd1000000-0000-4000-8000-000000000007';
+select is(
+  (select status::text || ' ' || quantity || ' x ' || core_charge_cents || ' ' || (received_at is not null) from public.core_returns where order_id = 'd1000000-0000-4000-8000-000000000007'),
+  'received 2 x 5000 true', 'staff mark a core received, but cannot change what it was charged'
+);
+select throws_ok(
+  $$update public.core_returns set status = 'credited' where order_id = 'd1000000-0000-4000-8000-000000000007'$$,
+  '42501', null, 'crediting a core needs the credit amount'
+);
+select throws_ok(
+  $$update public.core_returns set status = 'credited', credit_cents = 10001 where order_id = 'd1000000-0000-4000-8000-000000000007'$$,
+  '42501', null, 'a core credit cannot exceed what was charged'
+);
+select lives_ok(
+  $$update public.core_returns set status = 'credited', credit_cents = 10000, stripe_refund_id = 're_1' where order_id = 'd1000000-0000-4000-8000-000000000007'$$,
+  'staff credit a received core'
+);
+select ok((select credited_at is not null from public.core_returns where order_id = 'd1000000-0000-4000-8000-000000000007'), 'crediting records when');
+select throws_ok(
+  $$update public.core_returns set status = 'awaiting' where order_id = 'd1000000-0000-4000-8000-000000000007'$$,
+  '42501', null, 'a credited core stays credited'
+);
+select lives_ok(
+  $$update public.core_returns set due_date = due_date + 14 where order_id = 'd1000000-0000-4000-8000-000000000008'$$,
+  'staff can extend a core''s due date'
+);
+select ok(public.staff_close_order('d1000000-0000-4000-8000-000000000008', 'cancelled', true), 'staff cancel an order with an open core');
+select is((select status::text from public.core_returns where order_id = 'd1000000-0000-4000-8000-000000000008'), 'cancelled', 'cancelling the order voids its open core');
 select is((select count(*)::int from public.order_notes), 1, 'staff read order notes');
 select lives_ok(
   $$update public.orders set status = 'shipped', carrier = 'UPS', tracking_number = '1Z999' where id = 'd1000000-0000-4000-8000-000000000001'$$,
@@ -145,7 +216,7 @@ select ok(
 );
 select ok(public.staff_close_order('d1000000-0000-4000-8000-000000000005', 'cancelled', true), 'staff cancel an unshipped order');
 reset role;
-select is(pg_temp.stock('c1000000-0000-4000-8000-00000000000a'), '2/0', 'cancelling with restock puts the stock back');
+select is(pg_temp.stock('c1000000-0000-4000-8000-00000000000a'), '1/0', 'cancelling with restock puts the stock back');
 select is((select total_cents from public.orders where id = 'd1000000-0000-4000-8000-000000000005'), 100, 'staff cannot change an order''s totals');
 
 select * from finish();

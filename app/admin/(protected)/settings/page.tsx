@@ -26,6 +26,7 @@ export default async function SettingsPage() {
           enabled: row.store_enabled === true,
           rates: rateRowValues(parseShippingRates(row.shipping_rates)),
           missing: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"].filter((k) => !process.env[k]),
+          coreReturnDays: typeof row.core_return_days === "number" ? row.core_return_days : 30,
         }}
       />
     </>

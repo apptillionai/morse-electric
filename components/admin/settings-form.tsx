@@ -16,6 +16,7 @@ export interface StoreSettings {
   rates: Record<string, string>;
   /** Which Stripe keys are missing on the server, if any. */
   missing: string[];
+  coreReturnDays: number;
 }
 
 export function SettingsForm({
@@ -69,8 +70,8 @@ export function SettingsForm({
         <legend className={legend}>Online store</legend>
         <p id="store-hint" className="text-sm text-fg-muted">
           When the store is on, priced in-stock items that ship by parcel or are collected get an “Add to cart” button,
-          and customers pay by card or bank transfer through Stripe. Everything else stays “Request a quote”. Items with a
-          core charge and freight items can’t be bought online yet.
+          and customers pay by card or bank transfer through Stripe. Everything else stays “Request a quote”. Freight items
+          can’t be bought online. Core charges are added at checkout and refunded from Admin → Cores.
         </p>
         {store.missing.length > 0 && (
           <p role="note" className="rounded border-2 border-warn px-4 py-3 text-sm">
@@ -81,6 +82,16 @@ export function SettingsForm({
           <input type="checkbox" name="store_enabled" defaultChecked={storeOn} className="size-[18px] accent-fg" />
           Take orders online
         </label>
+        <TextField
+          label="Core return window (days)"
+          name="core_return_days"
+          inputMode="numeric"
+          required
+          defaultValue={state.values?.core_return_days ?? String(store.coreReturnDays)}
+          error={e.core_return_days}
+          hint="How long customers have to send back an old unit for a core-charge refund. Reminders go out a week before and on the due date."
+          className="max-w-md"
+        />
         <div className="flex flex-col gap-2">
           <span className="font-semibold">Parcel shipping by order weight</span>
           <span className="text-sm text-fg-muted">

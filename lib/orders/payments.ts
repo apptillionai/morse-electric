@@ -49,7 +49,7 @@ export async function applyCompletedSession(session: Stripe.Checkout.Session): P
       ship_state: clip(ship?.address.state, 40),
       ship_postal: clip(ship?.address.postal_code, 20),
       ship_country: clip(ship?.address.country, 2),
-      subtotal_cents: session.amount_subtotal ?? undefined,
+      // Stripe's subtotal includes core charges; ours keeps items and cores apart, so it stays as checkout set it.
       shipping_cents: session.total_details?.amount_shipping ?? undefined,
       tax_cents: session.total_details?.amount_tax ?? undefined,
       total_cents: session.amount_total ?? undefined,

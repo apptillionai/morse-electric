@@ -65,13 +65,14 @@ describe("cart cookie", () => {
 describe("onlinePurchaseBlock", () => {
   it("allows a priced, listed parcel or pickup item in stock", () => {
     expect(onlinePurchaseBlock(product())).toBeNull();
+    expect(onlinePurchaseBlock(product({ condition: "remanufactured", coreChargeCents: 7500 }))).toBeNull();
+    expect(onlinePurchaseBlock(product({ condition: "exchange", coreChargeCents: 7500 }))).toBeNull();
     expect(onlinePurchaseBlock(product({ shipClass: "pickup_only" }))).toBeNull();
   });
 
   it("keeps quote-only items out of the cart", () => {
     expect(onlinePurchaseBlock(product({ priceCents: null }))).toBe("priced on request");
-    expect(onlinePurchaseBlock(product({ coreChargeCents: 7500 }))).toBe("carries a core charge");
-    expect(onlinePurchaseBlock(product({ condition: "exchange" }))).toBe("carries a core charge");
+    expect(onlinePurchaseBlock(product({ condition: "exchange" }))).toBe("needs a core charge set");
     expect(onlinePurchaseBlock(product({ shipClass: "ltl" }))).toBe("ships by freight");
     expect(onlinePurchaseBlock(product({ active: false }))).toBe("no longer listed");
     expect(onlinePurchaseBlock(product({ available: 0 }))).toBe("out of stock");
@@ -104,6 +105,20 @@ describe("priceCart", () => {
     expect(shippingCents(cart, "ship")).toBe(4500);
     expect(shippingCents(cart, "pickup")).toBe(0);
     expect(cart.adjustments).toEqual([]);
+  });
+
+  it("adds refundable core charges on top of the subtotal", () => {
+    const cart = priceCart(
+      [{ productId: A, quantity: 2 }, { productId: B, quantity: 1 }],
+      new Map([
+        [A, product({ condition: "remanufactured", coreChargeCents: 7500 })],
+        [B, product({ id: B, weightLb: 5 })],
+      ]),
+      rates,
+    );
+    expect(cart.subtotalCents).toBe(150000);
+    expect(cart.coreCents).toBe(15000);
+    expect(cart.lines.map((l) => l.coreCents)).toEqual([15000, 0]);
   });
 
   it("drops items that can't be bought and reduces quantities to what's in stock", () => {

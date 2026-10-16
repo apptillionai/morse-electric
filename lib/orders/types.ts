@@ -28,6 +28,8 @@ export interface OrderItem {
   name: string;
   condition: ProductCondition;
   unit_price_cents: number;
+  /** Per unit; 0 when the item carries no core. */
+  core_charge_cents: number;
   quantity: number;
   sort_order: number;
 }
@@ -49,6 +51,7 @@ export interface Order {
   ship_postal: string | null;
   ship_country: string | null;
   subtotal_cents: number;
+  core_cents: number;
   shipping_cents: number;
   tax_cents: number;
   total_cents: number;
@@ -65,8 +68,41 @@ export interface Order {
   updated_at: string;
 }
 
+export const CORE_STATUSES = ["awaiting", "received", "credited", "rejected", "cancelled"] as const;
+export type CoreStatus = (typeof CORE_STATUSES)[number];
+
+export const CORE_STATUS_LABELS: Record<CoreStatus, string> = {
+  awaiting: "Waiting for your old unit",
+  received: "Received, being inspected",
+  credited: "Refunded",
+  rejected: "Not accepted",
+  cancelled: "Not needed (order cancelled)",
+};
+
+export interface CoreReturn {
+  id: string;
+  order_id: string;
+  order_item_id: string;
+  status: CoreStatus;
+  quantity: number;
+  core_charge_cents: number;
+  due_date: string;
+  received_at: string | null;
+  credited_at: string | null;
+  credit_cents: number | null;
+  stripe_refund_id: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+}
+
 export interface OrderWithItems extends Order {
   items: OrderItem[];
+  cores: CoreReturn[];
+}
+
+/** "Mar 3, 2027" for a due date stored as YYYY-MM-DD. */
+export function formatDueDate(date: string): string {
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
 }
 
 /** Ship-to address as display lines, or null for pickup. */
@@ -81,7 +117,7 @@ export async function getOrder(
   supabase: SupabaseClient,
   by: { id: string } | { reference: string } | { sessionId: string },
 ): Promise<OrderWithItems | null> {
-  let query = supabase.from("orders").select("*, items:order_items(*)");
+  let query = supabase.from("orders").select("*, items:order_items(*), cores:core_returns(*)");
   if ("id" in by) query = query.eq("id", by.id);
   else if ("reference" in by) query = query.eq("reference", by.reference);
   else query = query.eq("stripe_checkout_session_id", by.sessionId);
@@ -89,5 +125,9 @@ export async function getOrder(
   if (error) throw new Error(`Order: ${error.message}`);
   if (!data) return null;
   const order = data as OrderWithItems;
-  return { ...order, items: [...(order.items ?? [])].sort((a, b) => a.sort_order - b.sort_order) };
+  return {
+    ...order,
+    items: [...(order.items ?? [])].sort((a, b) => a.sort_order - b.sort_order),
+    cores: order.cores ?? [],
+  };
 }

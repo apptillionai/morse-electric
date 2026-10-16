@@ -41,7 +41,7 @@ export default async function CartPage(props: PageProps<"/cart">) {
     );
   }
 
-  const [lines, { shippingRates }] = await Promise.all([readCart(), getSiteSettings()]);
+  const [lines, { shippingRates, coreReturnDays }] = await Promise.all([readCart(), getSiteSettings()]);
   const cart = priceCart(lines, await loadBuyableProducts(lines.map((l) => l.productId)), shippingRates);
   const error = one("error");
   const added = cart.lines.find((l) => l.product.slug === one("added"));
@@ -72,7 +72,7 @@ export default async function CartPage(props: PageProps<"/cart">) {
       ) : (
         <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
           <ul className="flex flex-col divide-y divide-edge rounded-md border border-edge bg-surface" aria-label="Items in your cart">
-            {cart.lines.map(({ product, quantity, lineCents }) => (
+            {cart.lines.map(({ product, quantity, lineCents, coreCents }) => (
               <li key={product.id} className="flex flex-wrap items-start gap-x-6 gap-y-3 p-5">
                 <div className="flex min-w-0 flex-[1_1_260px] flex-col gap-1">
                   <Link href={`/products/${product.slug}`} className="font-semibold">
@@ -85,6 +85,12 @@ export default async function CartPage(props: PageProps<"/cart">) {
                     {money(product.priceCents ?? 0)} each
                     {product.shipClass === "pickup_only" && " · pickup only"}
                   </span>
+                  {(product.coreChargeCents ?? 0) > 0 && (
+                    <span className="text-sm text-fg-muted">
+                      Plus {money(product.coreChargeCents ?? 0)} refundable core charge each. Return your old unit within{" "}
+                      {coreReturnDays} days for a refund.
+                    </span>
+                  )}
                 </div>
                 <form action={updateCartLineAction} className="flex items-end gap-2">
                   <input type="hidden" name="productId" value={product.id} />
@@ -103,6 +109,7 @@ export default async function CartPage(props: PageProps<"/cart">) {
                 </form>
                 <div className="flex min-w-24 flex-col items-end gap-1">
                   <strong>{money(lineCents)}</strong>
+                  {coreCents > 0 && <span className="text-sm text-fg-muted">+ {money(coreCents)} core</span>}
                   <form action={removeCartLineAction}>
                     <input type="hidden" name="productId" value={product.id} />
                     <button type="submit" className="min-h-11 text-sm font-semibold text-fg-muted underline hover:text-fg">
@@ -142,6 +149,12 @@ export default async function CartPage(props: PageProps<"/cart">) {
                 <dt>Subtotal</dt>
                 <dd>{money(cart.subtotalCents)}</dd>
               </div>
+              {cart.coreCents > 0 && (
+                <div className="flex justify-between gap-4">
+                  <dt>Core charges (refundable)</dt>
+                  <dd>{money(cart.coreCents)}</dd>
+                </div>
+              )}
               <div className="flex justify-between gap-4 text-fg-muted">
                 <dt>Shipping</dt>
                 <dd>{canShip && shipCents !== null ? `${money(shipCents)} or free pickup` : "Free pickup"}</dd>
@@ -156,7 +169,8 @@ export default async function CartPage(props: PageProps<"/cart">) {
             <p className="text-[13px] text-fg-muted">
               You’ll pay on Stripe’s secure page by card or bank transfer (ACH). By ordering you agree to our{" "}
               <Link href="/policies/terms-of-sale">terms of sale</Link>, <Link href="/policies/returns">returns</Link> and{" "}
-              <Link href="/policies/shipping">shipping</Link> policies. Tax-exempt? <Link href="/account/profile">Sign in</Link> with an
+              <Link href="/policies/shipping">shipping</Link> policies
+              {cart.coreCents > 0 && <>, including how <Link href="/policies/terms-of-sale">core returns</Link> work</>}. Tax-exempt? <Link href="/account/profile">Sign in</Link> with an
               approved certificate first.
             </p>
           </form>

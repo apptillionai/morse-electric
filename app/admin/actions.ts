@@ -375,15 +375,21 @@ export interface SettingsState {
 
 export async function saveSettingsAction(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
   const staff = await requireStaff();
-  const values = formFields(formData, ["default_theme", "store_enabled", ...BUSINESS_FIELDS, ...RATE_FIELDS] as const);
+  const values = formFields(formData, ["default_theme", "store_enabled", "core_return_days", ...BUSINESS_FIELDS, ...RATE_FIELDS] as const);
   const theme = values.default_theme;
   if (!isDefaultTheme(theme)) return { error: "Choose a default theme.", values };
   const business = businessSchema.safeParse(values);
   const rates = parseRateRows(values);
-  if (!business.success || !rates.ok) {
+  const returnDays = Number(values.core_return_days || "30");
+  const daysError = Number.isInteger(returnDays) && returnDays >= 1 && returnDays <= 365 ? null : "Enter a number of days from 1 to 365.";
+  if (!business.success || !rates.ok || daysError) {
     return {
       error: "Check the highlighted fields.",
-      fieldErrors: { ...(business.success ? {} : fieldErrors(business.error)), ...(rates.ok ? {} : rates.errors) },
+      fieldErrors: {
+        ...(business.success ? {} : fieldErrors(business.error)),
+        ...(rates.ok ? {} : rates.errors),
+        ...(daysError ? { core_return_days: daysError } : {}),
+      },
       values,
     };
   }
@@ -395,6 +401,7 @@ export async function saveSettingsAction(_prev: SettingsState, formData: FormDat
       ...business.data,
       store_enabled: values.store_enabled === "on",
       shipping_rates: rates.rates,
+      core_return_days: returnDays,
       updated_by: staff.id,
     })
     .eq("id", 1);

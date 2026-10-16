@@ -13,6 +13,8 @@ export interface SiteSettings {
   /** Online ordering switch; use storeIsOpen() (lib/orders/store.ts), which also checks Stripe is set up. */
   storeEnabled: boolean;
   shippingRates: ShippingRate[];
+  /** Days a customer has to return a core for a refund. */
+  coreReturnDays: number;
 }
 
 const FALLBACK: SiteSettings = {
@@ -20,6 +22,7 @@ const FALLBACK: SiteSettings = {
   business: EMPTY_BUSINESS,
   storeEnabled: false,
   shippingRates: [],
+  coreReturnDays: 30,
 };
 
 interface SettingsRow {
@@ -34,6 +37,7 @@ interface SettingsRow {
   service_area?: string | null;
   store_enabled?: boolean | null;
   shipping_rates?: unknown;
+  core_return_days?: number | null;
 }
 
 /**
@@ -67,6 +71,7 @@ export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
       },
       storeEnabled: row.store_enabled === true,
       shippingRates: parseShippingRates(row.shipping_rates),
+      coreReturnDays: typeof row.core_return_days === "number" && row.core_return_days > 0 ? row.core_return_days : 30,
     };
   } catch {
     return FALLBACK;

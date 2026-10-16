@@ -6,6 +6,7 @@ import { OrderSummary } from "@/components/orders/order-summary";
 import { Button } from "@/components/ui/button";
 import { requireCustomer } from "@/lib/customers/account";
 import { storeIsOpen } from "@/lib/orders/store";
+import { coreReturnInstructions } from "@/lib/orders/email";
 import { getOrder, ORDER_STATUS_LABELS, type OrderWithItems } from "@/lib/orders/types";
 import { getBusiness } from "@/lib/site-settings";
 import { createSessionClient } from "@/lib/supabase/server";
@@ -60,6 +61,12 @@ export default async function AccountOrderPage(props: PageProps<"/account/orders
           </form>
         )}
       </div>
+      {order.cores.some((c) => c.status === "awaiting") && (
+        <p className="rounded-md border-2 border-warn bg-surface p-4 text-sm">
+          <strong>Returning your old unit:</strong> {coreReturnInstructions(business, order.reference)} We refund the core
+          charge once it passes inspection.
+        </p>
+      )}
       <OrderSummary order={order} />
     </AccountShell>
   );

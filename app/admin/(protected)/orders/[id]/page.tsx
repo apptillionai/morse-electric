@@ -51,6 +51,12 @@ export default async function OrderPage(props: PageProps<"/admin/orders/[id]">) 
             {order.shipped_at && <Detail label="Shipped">{formatDate(order.shipped_at)}</Detail>}
           </dl>
           <OrderSummary order={order} />
+          {order.cores.length > 0 && (
+            <p className="text-sm">
+              This order has {order.cores.length === 1 ? "a core" : `${order.cores.length} cores`} to return.{" "}
+              <Link href="/admin/cores?status=all">Manage core returns</Link>
+            </p>
+          )}
         </div>
         <div className="flex flex-col gap-5">
           {order.status === "pending_payment" && (

@@ -1,6 +1,7 @@
-import { AlertTriangle, ClipboardList, FileUp, Package, ShoppingCart, Wrench } from "lucide-react";
+import { AlertTriangle, ClipboardList, FileUp, Package, RotateCcw, ShoppingCart, Wrench } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/admin-shell";
+import { coreCounts } from "@/lib/admin/cores";
 import { orderCounts } from "@/lib/admin/orders";
 import { dashboardCounts } from "@/lib/admin/requests";
 import { staffClient } from "@/lib/admin/auth";
@@ -22,7 +23,7 @@ function Tile({ href, label, value, note, icon: Icon, tone }: { href: string; la
 
 export default async function DashboardPage() {
   const supabase = await staffClient();
-  const [counts, orders] = await Promise.all([dashboardCounts(supabase), orderCounts(supabase)]);
+  const [counts, orders, cores] = await Promise.all([dashboardCounts(supabase), orderCounts(supabase), coreCounts(supabase)]);
   return (
     <>
       <PageHeader title="Dashboard" description="What needs attention today." />
@@ -33,6 +34,14 @@ export default async function DashboardPage() {
           value={orders.toFulfil}
           note={[orders.readyForPickup && `${orders.readyForPickup} waiting for pickup`, orders.awaitingPayment && `${orders.awaitingPayment} awaiting bank payment`].filter(Boolean).join(" · ") || undefined}
           icon={ShoppingCart}
+          tone="warn"
+        />
+        <Tile
+          href="/admin/cores?status=overdue"
+          label="Overdue cores"
+          value={cores.overdue}
+          note={cores.toInspect ? `${cores.toInspect} received, to inspect` : undefined}
+          icon={RotateCcw}
           tone="warn"
         />
         <Tile href="/admin/quotes" label="New quote requests" value={counts.newQuotes} icon={ClipboardList} tone="warn" />

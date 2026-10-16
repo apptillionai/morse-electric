@@ -3,7 +3,9 @@ import Link from "next/link";
 import { AccountShell } from "@/components/account/account-shell";
 import { ButtonLink } from "@/components/ui/button";
 import { requireCustomer } from "@/lib/customers/account";
-import { ORDER_STATUS_LABELS, type Order } from "@/lib/orders/types";
+import { coreReturnInstructions } from "@/lib/orders/email";
+import { formatDueDate, ORDER_STATUS_LABELS, type CoreReturn, type Order } from "@/lib/orders/types";
+import { getBusiness } from "@/lib/site-settings";
 import { createSessionClient } from "@/lib/supabase/server";
 import { formatPrice } from "@/lib/utils";
 
@@ -13,7 +15,8 @@ const date = (iso: string) =>
   new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "America/New_York" }).format(new Date(iso));
 
 type Row = Pick<Order, "id" | "reference" | "status" | "fulfillment" | "total_cents" | "created_at" | "tracking_number"> & {
-  items: { name: string; quantity: number }[];
+  items: { id: string; name: string; quantity: number }[];
+  cores: Pick<CoreReturn, "id" | "order_item_id" | "status" | "quantity" | "core_charge_cents" | "due_date">[];
 };
 
 export default async function AccountOrdersPage() {
@@ -21,16 +24,40 @@ export default async function AccountOrdersPage() {
   // RLS returns only this customer's orders; the filter keeps it that way for staff who are also customers.
   const { data, error } = await (await createSessionClient())
     .from("orders")
-    .select("id, reference, status, fulfillment, total_cents, created_at, tracking_number, items:order_items(name, quantity)")
+    .select(
+      "id, reference, status, fulfillment, total_cents, created_at, tracking_number, items:order_items(id, name, quantity), cores:core_returns(id, order_item_id, status, quantity, core_charge_cents, due_date)",
+    )
     .eq("customer_id", id)
     .neq("status", "checkout")
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) throw new Error(`Orders: ${error.message}`);
   const orders = data as Row[];
+  const business = await getBusiness();
+  const owed = orders.flatMap((o) =>
+    o.cores
+      .filter((c) => c.status === "awaiting")
+      .map((c) => ({ ...c, reference: o.reference, name: o.items.find((i) => i.id === c.order_item_id)?.name ?? "Item" })),
+  );
 
   return (
     <AccountShell current="/account/orders" name={customer.name} company={customer.company}>
+      {owed.length > 0 && (
+        <section aria-labelledby="cores-heading" className="flex flex-col gap-3 rounded-md border-2 border-warn bg-surface p-5">
+          <h2 id="cores-heading" className="font-display text-2xl font-bold uppercase tracking-[0.03em]">Cores to return</h2>
+          <ul className="flex flex-col gap-1.5">
+            {owed.map((c) => (
+              <li key={c.id}>
+                <strong>{c.quantity} × {c.name}</strong> (order{" "}
+                <Link href={`/account/orders/${c.reference}`}>{c.reference}</Link>): return by {formatDueDate(c.due_date)} to get{" "}
+                {formatPrice(c.quantity * c.core_charge_cents)} back.
+              </li>
+            ))}
+          </ul>
+          <p className="text-sm text-fg-muted">{coreReturnInstructions(business, "number")}</p>
+        </section>
+      )}
+
       <section aria-labelledby="orders-heading" className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="orders-heading" className="flex items-center gap-2 font-display text-3xl font-bold uppercase tracking-[0.03em]">

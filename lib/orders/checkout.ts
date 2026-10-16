@@ -102,7 +102,7 @@ export async function createCheckout(input: {
     ({ error }) => error && console.error("[checkout] release stale:", error.message),
   );
 
-  const { shippingRates } = await getSiteSettings();
+  const { shippingRates, coreReturnDays: returnDays } = await getSiteSettings();
   const products = await loadBuyableProducts(input.cart.map((l) => l.productId));
   const cart = priceCart(input.cart, products, shippingRates);
   if (cart.adjustments.length) {
@@ -123,8 +123,9 @@ export async function createCheckout(input: {
       name: input.customer?.name ?? null,
       fulfillment: input.fulfillment,
       subtotal_cents: cart.subtotalCents,
+      core_cents: cart.coreCents,
       shipping_cents: shipping,
-      total_cents: cart.subtotalCents + shipping,
+      total_cents: cart.subtotalCents + cart.coreCents + shipping,
       expires_at: new Date(expiresAt * 1000).toISOString(),
     })
     .select("id, reference")
@@ -144,6 +145,7 @@ export async function createCheckout(input: {
       name: l.product.name,
       condition: l.product.condition,
       unit_price_cents: l.product.priceCents,
+      core_charge_cents: Math.max(0, l.product.coreChargeCents ?? 0),
       quantity: l.quantity,
       weight_lb: l.product.weightLb,
       sort_order: i,
@@ -175,19 +177,39 @@ export async function createCheckout(input: {
       metadata,
       payment_intent_data: { metadata, description: `${SITE.name} order ${order.reference}` },
       expires_at: expiresAt,
-      line_items: cart.lines.map((l) => ({
-        quantity: l.quantity,
-        price_data: {
-          currency: "usd",
-          unit_amount: l.product.priceCents ?? 0,
-          tax_behavior: "exclusive",
-          product_data: {
-            name: `${l.product.name} (${CONDITION_LABELS[l.product.condition]})`,
-            description: `Part # ${l.product.sku}`,
-            metadata: { sku: l.product.sku },
+      line_items: cart.lines.flatMap<Stripe.Checkout.SessionCreateParams.LineItem>((l) => [
+        {
+          quantity: l.quantity,
+          price_data: {
+            currency: "usd",
+            unit_amount: l.product.priceCents ?? 0,
+            tax_behavior: "exclusive" as const,
+            product_data: {
+              name: `${l.product.name} (${CONDITION_LABELS[l.product.condition]})`,
+              description: `Part # ${l.product.sku}`,
+              metadata: { sku: l.product.sku, core: "false" },
+            },
           },
         },
-      })),
+        // The refundable core charge is its own line, so the receipt shows it separately.
+        ...(l.coreCents > 0
+          ? [
+              {
+                quantity: l.quantity,
+                price_data: {
+                  currency: "usd",
+                  unit_amount: l.product.coreChargeCents ?? 0,
+                  tax_behavior: "exclusive" as const,
+                  product_data: {
+                    name: `Core charge (refundable): ${l.product.name}`,
+                    description: `Refunded when your old unit comes back within ${returnDays} days and passes inspection.`,
+                    metadata: { sku: l.product.sku, core: "true" },
+                  },
+                },
+              },
+            ]
+          : []),
+      ]),
       automatic_tax: { enabled: true },
       ...(customer
         ? { customer, customer_update: { address: "auto", shipping: "auto", name: "auto" } }

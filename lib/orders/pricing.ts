@@ -39,8 +39,8 @@ export type Fulfillment = "ship" | "pickup";
 export function onlinePurchaseBlock(p: Omit<BuyableProduct, "available"> & { available?: number }): string | null {
   if (!p.active) return "no longer listed";
   if (p.priceCents === null || p.priceCents <= 0) return "priced on request";
-  // Core charges and their refunds arrive with step 2 of Phase 2.
-  if (p.condition === "exchange" || (p.coreChargeCents ?? 0) > 0) return "carries a core charge";
+  // An exchange unit is priced on the customer returning their old one.
+  if (p.condition === "exchange" && !((p.coreChargeCents ?? 0) > 0)) return "needs a core charge set";
   if (p.shipClass === "ltl") return "ships by freight";
   if (p.available !== undefined && p.available < 1) return "out of stock";
   return null;
@@ -67,6 +67,8 @@ export interface PricedLine {
   product: BuyableProduct;
   quantity: number;
   lineCents: number;
+  /** Refundable core charge for the line (charge × quantity), 0 when none. */
+  coreCents: number;
 }
 
 export interface CartAdjustment {
@@ -81,7 +83,10 @@ export interface PricedCart {
   adjustments: CartAdjustment[];
   /** The cookie as it should now be, after adjustments. */
   cleaned: CartLine[];
+  /** Items only. */
   subtotalCents: number;
+  /** Refundable core charges, charged on top of the subtotal. */
+  coreCents: number;
   /** Null when any item has no weight on file. */
   weightLb: number | null;
   shipping:
@@ -114,10 +119,16 @@ export function priceCart(
       quantity = product.available;
       adjustments.push({ name: product.name, message: `reduced to ${quantity}: only ${quantity} in stock` });
     }
-    lines.push({ product, quantity, lineCents: (product.priceCents ?? 0) * quantity });
+    lines.push({
+      product,
+      quantity,
+      lineCents: (product.priceCents ?? 0) * quantity,
+      coreCents: Math.max(0, product.coreChargeCents ?? 0) * quantity,
+    });
   }
 
   const subtotalCents = lines.reduce((sum, l) => sum + l.lineCents, 0);
+  const coreCents = lines.reduce((sum, l) => sum + l.coreCents, 0);
   const weightLb = lines.some((l) => l.product.weightLb === null)
     ? null
     : Math.round(lines.reduce((sum, l) => sum + (l.product.weightLb ?? 0) * l.quantity, 0) * 100) / 100;
@@ -140,6 +151,7 @@ export function priceCart(
     adjustments,
     cleaned: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
     subtotalCents,
+    coreCents,
     weightLb,
     shipping,
   };

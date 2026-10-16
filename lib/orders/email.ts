@@ -7,21 +7,39 @@ import { SITE } from "@/lib/site";
 import { getBusiness } from "@/lib/site-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatPrice } from "@/lib/utils";
-import { getOrder, shippingLines, type OrderWithItems } from "./types";
+import { formatDueDate, getOrder, shippingLines, type CoreReturn, type OrderWithItems } from "./types";
 
-export type OrderEmailKind = "placed" | "paid" | "payment_failed" | "shipped" | "ready" | "cancelled" | "refunded";
+export type OrderEmailKind =
+  | "placed"
+  | "paid"
+  | "payment_failed"
+  | "shipped"
+  | "ready"
+  | "cancelled"
+  | "refunded"
+  // About one core return (pass its id):
+  | "core_reminder"
+  | "core_overdue"
+  | "core_credited"
+  | "core_rejected";
 
 const money = (cents: number) => formatPrice(cents) ?? "";
 const p = (html: string) => `<p style="font:15px/1.5 sans-serif">${html}</p>`;
 
 /** The order as a table (HTML) and plain lines (text). */
 export function orderSummary(order: OrderWithItems): { html: string; text: string } {
-  const items = order.items.map((i) => ({
-    label: `${i.quantity} × ${i.name} (${CONDITION_LABELS[i.condition]}), part # ${i.sku}`,
-    amount: money(i.unit_price_cents * i.quantity),
-  }));
+  const items = order.items.flatMap((i) => [
+    {
+      label: `${i.quantity} × ${i.name} (${CONDITION_LABELS[i.condition]}), part # ${i.sku}`,
+      amount: money(i.unit_price_cents * i.quantity),
+    },
+    ...(i.core_charge_cents > 0
+      ? [{ label: `   Core charge (refundable), ${i.quantity} × ${money(i.core_charge_cents)}`, amount: money(i.core_charge_cents * i.quantity) }]
+      : []),
+  ]);
   const totals = [
     { label: "Subtotal", amount: money(order.subtotal_cents) },
+    ...(order.core_cents > 0 ? [{ label: "Core charges (refundable)", amount: money(order.core_cents) }] : []),
     { label: order.fulfillment === "pickup" ? "Pickup" : "Shipping", amount: order.fulfillment === "pickup" ? "Free" : money(order.shipping_cents) },
     { label: "Tax", amount: money(order.tax_cents) },
     { label: "Total", amount: money(order.total_cents) },
@@ -48,10 +66,47 @@ interface Message {
   lines: string[];
 }
 
-async function customerMessage(kind: OrderEmailKind, order: OrderWithItems): Promise<Message | null> {
+/** Where and how to send back a core. */
+export function coreReturnInstructions(business: { street: string; cityStateZip: string }, reference: string): string {
+  return `Bring or ship your old unit to ${business.street}, ${business.cityStateZip}, tagged with order ${reference}. It must be the same type and size as the one you bought, complete, not taken apart, and free of fire, flood or impact damage.`;
+}
+
+async function customerMessage(kind: OrderEmailKind, order: OrderWithItems, core: CoreReturn | null): Promise<Message | null> {
   const business = await getBusiness();
   const ref = order.reference;
+  const coreItem = core ? order.items.find((i) => i.id === core.order_item_id) : undefined;
+  const coreName = coreItem ? `${core!.quantity} × ${coreItem.name}` : "your old unit";
+  const coreAmount = core ? money(core.core_charge_cents * core.quantity) : "";
+  const openCores = order.cores.filter((c) => c.status === "awaiting");
+  const coreNote = openCores.length
+    ? [
+        `Your order includes ${money(order.core_cents)} in refundable core charges. Return your old unit${openCores.length > 1 || openCores[0].quantity > 1 ? "s" : ""} by ${formatDueDate(openCores[0].due_date)} for a refund. ${coreReturnInstructions(business, ref)}`,
+      ]
+    : [];
   switch (kind) {
+    case "core_reminder":
+      return core && {
+        subject: `Reminder: return your core for order ${ref} by ${formatDueDate(core.due_date)}`,
+        lines: [`We haven’t received the core for ${coreName} yet. Return it by ${formatDueDate(core.due_date)} to get your ${coreAmount} core charge back.`, coreReturnInstructions(business, ref)],
+      };
+    case "core_overdue":
+      return core && {
+        subject: `Your core for order ${ref} is overdue`,
+        lines: [`The core for ${coreName} was due back on ${formatDueDate(core.due_date)}. We can still refund the ${coreAmount} core charge if it reaches us soon; ${business.callUs} if you need more time.`, coreReturnInstructions(business, ref)],
+      };
+    case "core_credited":
+      return core && {
+        subject: `Core refund for order ${ref}`,
+        lines: [`We received and checked the core for ${coreName} and refunded ${money(core.credit_cents ?? 0)}. Refunds take 5–10 business days to reach your account.`],
+      };
+    case "core_rejected":
+      return core && {
+        subject: `We couldn’t accept the core for order ${ref}`,
+        lines: [
+          `We inspected the core for ${coreName} and couldn’t accept it${core.rejection_reason ? `: ${core.rejection_reason}` : "."}`,
+          `So the ${coreAmount} core charge isn’t refunded. Questions? ${business.callUs}.`,
+        ],
+      };
     case "placed":
       return order.status === "pending_payment"
         ? {
@@ -60,6 +115,7 @@ async function customerMessage(kind: OrderEmailKind, order: OrderWithItems): Pro
               `Thanks for your order. Your bank payment usually takes a few business days to clear; we’ll ${
                 order.fulfillment === "pickup" ? "have it ready for pickup" : "ship it"
               } as soon as it does.`,
+              ...coreNote,
             ],
           }
         : {
@@ -68,6 +124,7 @@ async function customerMessage(kind: OrderEmailKind, order: OrderWithItems): Pro
               order.fulfillment === "pickup"
                 ? `Thanks for your order. We’ll email you when it’s ready to collect from ${business.street}, ${business.cityStateZip}.`
                 : "Thanks for your order. We’ll email you the tracking number when it ships.",
+              ...coreNote,
             ],
           };
     case "payment_failed":
@@ -122,24 +179,26 @@ function staffMessage(kind: OrderEmailKind, order: OrderWithItems): Message | nu
 
 /**
  * Email the customer and/or staff about an order. Never throws: the order is
- * already saved, and a mail outage must not undo or repeat anything.
+ * already saved, and a mail outage must not undo or repeat anything. Returns
+ * whether every email went out (the core reminder job retries the rest).
  */
-export async function sendOrderEmails(orderId: string, kind: OrderEmailKind): Promise<void> {
+export async function sendOrderEmails(orderId: string, kind: OrderEmailKind, coreId?: string): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.MORSE_EMAIL_FROM;
   const staff = process.env.MORSE_STAFF_EMAIL?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
   if (!apiKey || !from) {
     console.warn(`[email] Resend not configured; no ${kind} email for order ${orderId}.`);
-    return;
+    return false;
   }
   try {
     const order = await getOrder(createAdminClient(), { id: orderId });
-    if (!order) return;
+    if (!order) return false;
+    const core = coreId ? order.cores.find((c) => c.id === coreId) ?? null : null;
     const resend = new Resend(apiKey);
     const summary = orderSummary(order);
     const sends: Promise<unknown>[] = [];
 
-    const toCustomer = await customerMessage(kind, order);
+    const toCustomer = await customerMessage(kind, order, core);
     if (toCustomer && order.email) {
       const accountUrl = order.customer_id ? `${SITE.url}/account/orders/${order.reference}` : null;
       sends.push(
@@ -175,13 +234,19 @@ export async function sendOrderEmails(orderId: string, kind: OrderEmailKind): Pr
       );
     }
 
+    let ok = sends.length > 0;
     for (const result of await Promise.allSettled(sends)) {
-      if (result.status === "rejected") console.error(`[email] order ${order.reference} ${kind}:`, result.reason);
-      else if ((result.value as { error?: { message: string } | null })?.error) {
+      if (result.status === "rejected") {
+        ok = false;
+        console.error(`[email] order ${order.reference} ${kind}:`, result.reason);
+      } else if ((result.value as { error?: { message: string } | null })?.error) {
+        ok = false;
         console.error(`[email] order ${order.reference} ${kind}:`, (result.value as { error: { message: string } }).error.message);
       }
     }
+    return ok;
   } catch (error) {
     console.error(`[email] order ${orderId} ${kind}:`, error instanceof Error ? error.message : error);
+    return false;
   }
 }

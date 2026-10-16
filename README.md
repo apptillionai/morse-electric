@@ -32,8 +32,11 @@ Customers can buy in-stock items online and pay by card (including Apple Pay and
 | `/checkout/success` | The order confirmation Stripe returns customers to |
 | `/account/orders` | A signed-in customer's orders, with status, tracking and "Order again" |
 | `/admin/orders` | Orders to fulfil: mark as being prepared, shipped (with tracking) or ready for pickup, then completed; cancel or refund in full; staff notes |
+| `/admin/cores` | Core returns: what customers owe back, overdue ones first; mark received, then accept and refund the core charge, or reject with a reason; extend a due date |
 
-**What can be bought online:** active products with a price, in stock, that ship by parcel or are pickup-only. Items with a core charge (including exchange units) and freight (LTL) items stay "Request a quote" until core charges arrive in step 2.
+**What can be bought online:** active products with a price, in stock, that ship by parcel or are pickup-only. Freight (LTL) items stay "Request a quote", and so do exchange units until they have a core charge set.
+
+**Core charges:** a product's core charge is added at checkout as its own refundable line. Placing the order opens a core return, due back after the return window set at /admin/settings (30 days by default). The customer sees what they owe, the due date and return instructions in their emails and account. Staff mark the core received at /admin/cores, then "Accept & refund", which refunds that amount through Stripe, or reject it with a reason the customer sees. A daily job (`/api/cron/core-reminders`, scheduled in `vercel.json`, needs `CRON_SECRET`) emails a reminder a week before the due date and a notice once it's overdue. Cancelling or refunding a whole order closes its open cores.
 
 **Shipping:** staff set parcel rates by order weight at /admin/settings (e.g. up to 10 lb $15, up to 50 lb $45). Pickup is always free. Orders that are heavier than the top band, or that include an item with no weight on file, can only be picked up.
 
@@ -44,13 +47,16 @@ Customers can buy in-stock items online and pay by card (including Apple Pay and
 2. In Stripe → Developers → Webhooks, add an endpoint at `https://morseelectricmotor.com/api/stripe/webhook` with these events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`. Put its signing secret in `STRIPE_WEBHOOK_SECRET`.
 3. Turn on Stripe Tax (Settings → Tax): set the shop's origin address and add a Massachusetts registration, plus any other state where Morse collects tax. Checkout calculates tax automatically, and approved tax-exempt customers are marked exempt in Stripe when they check out signed in.
 4. In Settings → Payment methods, turn on cards, Apple Pay / Google Pay and ACH Direct Debit (US bank account).
-5. At /admin/settings, enter the shipping bands and tick **Take orders online**.
+5. Set `CRON_SECRET` in Vercel (any long random string) for the core-return reminders.
+6. At /admin/settings, enter the shipping bands, check the core return window and tick **Take orders online**.
+
+Everything still to do before launch, for you and for Morse, is in [`docs/launch-checklist.md`](docs/launch-checklist.md).
 
 ## Staff admin (`/admin`)
 
 | Route | What it does |
 | --- | --- |
-| `/admin` | Dashboard: orders to fulfil, new quotes, open and rush service jobs, out-of-stock and draft products |
+| `/admin` | Dashboard: orders to fulfil, overdue cores, new quotes, open and rush service jobs, out-of-stock and draft products |
 | `/admin/products` | Search and filter the catalog; add, edit, archive or delete products; photos; stock |
 | `/admin/import` | CSV import with a preview (new, updated, unchanged, problems by row) before anything is saved; template download |
 | `/admin/products/export` | The whole catalog as CSV, in the same format the importer reads |
@@ -79,7 +85,7 @@ Sign-in links use Supabase's **Email OTP expiration** (Authentication → Provid
 
 **CSV import rules:** rows match existing products by SKU (a new SKU creates a product); only the columns present in the file change; new products need a name and category. Common header names (`Part #`, `Horsepower`, `Qty on hand`, …) are recognised, and values like `$1,299`, `7½`, `TEFC` and `3 phase` are understood.
 
-Phase 2 is in progress: the online store is built (step 1); next come core charges, Net-30 and payable quotes. See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
+Phase 2 is in progress: the online store (step 1) and core charges (step 2) are built; next come Net-30 terms and payable quotes. See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
 
 ## Getting started
 
