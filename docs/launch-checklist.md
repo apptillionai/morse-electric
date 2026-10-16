@@ -10,7 +10,7 @@ Last updated: Phase 2, step 3 (Net-30 terms and business account requests).
 - [x] ✅ Request-photos migration applied to the live database.
 - [x] ✅ Orders migration applied to the live database.
 - [x] ✅ Core-returns migration applied to the live database.
-- [ ] Net-30 migration (`20261016190000_net30.sql`) applied to the live database. Claude does this once you say so. **It must happen before the merge**: the admin and cart pages read the new columns.
+- [x] ✅ Net-30 migration applied to the live database.
 - [ ] After the merge, send one quote request with a photo on the live site and open it in Admin → Quotes to check the photo shows. (Previews can't save requests: they don't have `SUPABASE_SECRET_KEY`.)
 
 ## 2. Vercel environment variables
