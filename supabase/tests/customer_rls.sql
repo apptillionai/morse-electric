@@ -3,7 +3,7 @@
 -- Run with `supabase test db`.
 begin;
 create extension if not exists pgtap;
-select plan(24);
+select plan(34);
 
 insert into auth.users (id, email) values
   ('e1000000-0000-4000-8000-000000000001', 'staff@example.invalid'),
@@ -23,6 +23,21 @@ insert into public.service_requests (id, equipment_type, name, email, phone, sym
   ('f2000000-0000-4000-8000-000000000002', 'pump', 'Bob', 'bob@example.invalid', '5550000000', 'leaks', 'e1000000-0000-4000-8000-000000000003');
 insert into public.service_request_notes (service_request_id, notes)
   values ('f2000000-0000-4000-8000-000000000001', 'Customer is difficult');
+insert into public.request_photos (quote_request_id, service_request_id, storage_path, content_type, size_bytes) values
+  ('f1000000-0000-4000-8000-000000000001', null, 'quote/f1000000-0000-4000-8000-000000000001/a.jpg', 'image/jpeg', 10),
+  ('f1000000-0000-4000-8000-000000000003', null, 'quote/f1000000-0000-4000-8000-000000000003/b.jpg', 'image/jpeg', 10),
+  (null, 'f2000000-0000-4000-8000-000000000002', 'service/f2000000-0000-4000-8000-000000000002/c.jpg', 'image/jpeg', 10);
+insert into storage.objects (bucket_id, name) values
+  ('request-photos', 'quote/f1000000-0000-4000-8000-000000000001/a.jpg'),
+  ('request-photos', 'quote/f1000000-0000-4000-8000-000000000003/b.jpg'),
+  ('request-photos', 'service/f2000000-0000-4000-8000-000000000002/c.jpg'),
+  -- A file with no request_photos row is never readable.
+  ('request-photos', 'quote/f1000000-0000-4000-8000-000000000001/orphan.jpg');
+select throws_ok(
+  $$insert into public.request_photos (quote_request_id, service_request_id, storage_path, content_type, size_bytes)
+    values ('f1000000-0000-4000-8000-000000000001', 'f2000000-0000-4000-8000-000000000001', 'x/y.jpg', 'image/jpeg', 1)$$,
+  '23514', null, 'a photo belongs to exactly one request'
+);
 
 -- Signed in as the customer Ann ----------------------------------------------
 set local role authenticated;
@@ -72,11 +87,23 @@ insert into storage.objects (bucket_id, name) values ('customer-documents', 'e10
 set local role authenticated;
 set local "request.jwt.claims" to '{"sub":"e1000000-0000-4000-8000-000000000002"}';
 select is((select count(*)::int from storage.objects where bucket_id = 'customer-documents'), 1, 'a customer sees only their own documents');
+select is((select count(*)::int from public.request_photos), 1, 'a customer sees only photos on their own requests');
+select is((select count(*)::int from storage.objects where bucket_id = 'request-photos'), 1, 'a customer can open only their own request photos');
+select throws_ok(
+  $$insert into public.request_photos (quote_request_id, storage_path, content_type, size_bytes)
+    values ('f1000000-0000-4000-8000-000000000001', 'quote/f1000000-0000-4000-8000-000000000001/d.jpg', 'image/jpeg', 1)$$,
+  '42501', null, 'a customer cannot add photo records'
+);
+select throws_ok(
+  $$insert into storage.objects (bucket_id, name) values ('request-photos', 'quote/f1000000-0000-4000-8000-000000000001/d.jpg')$$,
+  '42501', null, 'a customer cannot upload request photos directly'
+);
 
 -- Signed in, but not a customer (and not staff) ------------------------------
 set local "request.jwt.claims" to '{"sub":"e1000000-0000-4000-8000-000000000004"}';
 select is((select count(*)::int from public.customers), 0, 'a non-customer sees no profiles');
 select is((select count(*)::int from public.service_requests), 0, 'a non-customer sees no service requests');
+select is((select count(*)::int from public.request_photos), 0, 'a non-customer sees no request photos');
 select throws_ok(
   $$insert into storage.objects (bucket_id, name) values ('customer-documents', 'e1000000-0000-4000-8000-000000000004/x.pdf')$$,
   '42501', null, 'a signed-in user without a customer profile cannot upload documents'
@@ -87,6 +114,8 @@ reset role;
 set local role anon;
 select throws_ok('select * from public.customers', '42501', null, 'anon cannot read customers');
 select throws_ok('select * from public.service_request_notes', '42501', null, 'anon cannot read staff notes');
+select throws_ok('select * from public.request_photos', '42501', null, 'anon cannot read request photos');
+select is((select count(*)::int from storage.objects where bucket_id = 'request-photos'), 0, 'anon cannot open request photos');
 
 -- Staff -----------------------------------------------------------------------
 reset role;
@@ -100,6 +129,8 @@ select lives_ok(
 );
 select ok((select tax_exempt from public.customers where user_id = 'e1000000-0000-4000-8000-000000000002'), 'tax exemption approved');
 select is((select count(*)::int from storage.objects where bucket_id = 'customer-documents'), 2, 'staff can read every customer document');
+select is((select count(*)::int from public.request_photos), 3, 'staff see every request photo');
+select is((select count(*)::int from storage.objects where bucket_id = 'request-photos'), 3, 'staff can open every request photo that has a record');
 
 select * from finish();
 rollback;

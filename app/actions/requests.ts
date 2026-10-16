@@ -6,6 +6,7 @@ import { getSignedInUser } from "@/lib/customers/account";
 import { verifyCaptcha } from "@/lib/requests/captcha";
 import { sendRequestEmails } from "@/lib/requests/email";
 import type { RequestFormState } from "@/lib/requests/form-state";
+import { readPhotos, type PhotoCheck } from "@/lib/requests/photos";
 import {
   EQUIPMENT_TYPES,
   fieldErrors,
@@ -13,7 +14,7 @@ import {
   quoteRequestSchema,
   serviceRequestSchema,
 } from "@/lib/requests/schemas";
-import { insertQuoteRequest, insertServiceRequest } from "@/lib/requests/store";
+import { insertQuoteRequest, insertServiceRequest, storeRequestPhotos } from "@/lib/requests/store";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { getBusiness } from "@/lib/site-settings";
 
@@ -54,6 +55,18 @@ async function currentCustomerId(): Promise<string | null> {
   }
 }
 
+/** Field-level errors from the form fields and the photos together, so people see every problem at once. */
+function invalid(values: Record<string, string>, photos: PhotoCheck, errors: Record<string, string>): RequestFormState {
+  return {
+    status: "error",
+    message: "Check the highlighted fields.",
+    fieldErrors: photos.ok ? errors : { ...errors, photos: photos.error },
+    values,
+  };
+}
+
+const photoRow = (stored: number): [string, string | null] => ["Photos", stored ? `${stored} attached` : null];
+
 function sourcePath(formData: FormData): string | null {
   const value = formData.get("source_path");
   return typeof value === "string" && value.startsWith("/") ? value.slice(0, 500) : null;
@@ -64,9 +77,9 @@ export async function submitQuoteRequest(_prev: RequestFormState, formData: Form
   if (isBot(formData)) return { status: "success", reference: "received" };
 
   const parsed = quoteRequestSchema.safeParse(values);
-  if (!parsed.success) {
-    return { status: "error", message: "Check the highlighted fields.", fieldErrors: fieldErrors(parsed.error), values };
-  }
+  const photos = await readPhotos(formData);
+  if (!parsed.success) return invalid(values, photos, fieldErrors(parsed.error));
+  if (!photos.ok) return invalid(values, photos, {});
 
   // Signed-in customers were invited by staff, so they skip the spam check.
   const customerId = await currentCustomerId();
@@ -80,11 +93,13 @@ export async function submitQuoteRequest(_prev: RequestFormState, formData: Form
   const input = parsed.data;
   try {
     const product = input.sku ? await getCatalog().getProductBySku(input.sku) : null;
-    const reference = await insertQuoteRequest(input, {
+    const request = await insertQuoteRequest(input, {
       productId: product?.id ?? null,
       sourcePath: sourcePath(formData),
       customerId,
     });
+    const { reference } = request;
+    const stored = await storeRequestPhotos("quote", request, photos.photos);
 
     after(() =>
       sendRequestEmails({
@@ -100,7 +115,9 @@ export async function submitQuoteRequest(_prev: RequestFormState, formData: Form
           ["Part", product ? `${product.name} (${product.sku})` : input.sku],
           ["Quantity", input.quantity?.toString() ?? null],
           ["Details", input.details],
+          photoRow(stored),
         ],
+        adminPath: `/admin/quotes/${request.id}`,
       }),
     );
 
@@ -116,9 +133,9 @@ export async function submitServiceRequest(_prev: RequestFormState, formData: Fo
   if (isBot(formData)) return { status: "success", reference: "received" };
 
   const parsed = serviceRequestSchema.safeParse(values);
-  if (!parsed.success) {
-    return { status: "error", message: "Check the highlighted fields.", fieldErrors: fieldErrors(parsed.error), values };
-  }
+  const photos = await readPhotos(formData);
+  if (!parsed.success) return invalid(values, photos, fieldErrors(parsed.error));
+  if (!photos.ok) return invalid(values, photos, {});
 
   // Signed-in customers were invited by staff, so they skip the spam check.
   const customerId = await currentCustomerId();
@@ -131,7 +148,9 @@ export async function submitServiceRequest(_prev: RequestFormState, formData: Fo
 
   const input = parsed.data;
   try {
-    const reference = await insertServiceRequest(input, { sourcePath: sourcePath(formData), customerId });
+    const request = await insertServiceRequest(input, { sourcePath: sourcePath(formData), customerId });
+    const { reference } = request;
+    const stored = await storeRequestPhotos("service", request, photos.photos);
     const yes = (flag: boolean) => (flag ? "Yes" : null);
 
     after(() =>
@@ -153,7 +172,9 @@ export async function submitServiceRequest(_prev: RequestFormState, formData: Fo
           ["Pickup requested", yes(input.wantsPickup)],
           ["Rush (line down)", yes(input.isRush)],
           ["Also quote a replacement", yes(input.wantsReplacementQuote)],
+          photoRow(stored),
         ],
+        adminPath: `/admin/service/${request.id}`,
       }),
     );
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { STATUS_LABELS } from "@/lib/admin/requests";
+import { STATUS_LABELS, type RequestPhoto } from "@/lib/admin/requests";
 import { cn } from "@/lib/utils";
 
 const TONE: Record<string, string> = {
@@ -82,3 +82,27 @@ export function Detail({ label, children }: { label: string; children: ReactNode
 
 export const formatDate = (iso: string) =>
   new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/New_York" }).format(new Date(iso));
+
+/** Photos attached to a quote or service request. */
+export function RequestPhotos({ photos }: { photos: RequestPhoto[] }) {
+  if (!photos.length) return null;
+  return (
+    <ul className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-3">
+      {photos.map((photo, i) => (
+        <li key={i}>
+          <a href={photo.url} target="_blank" rel="noreferrer" className="flex flex-col gap-1 text-xs">
+            {photo.previewable ? (
+              // eslint-disable-next-line @next/next/no-img-element -- signed links straight from private Storage
+              <img src={photo.url} alt={photo.name} className="aspect-square w-full rounded border border-edge object-cover" />
+            ) : (
+              <span className="flex aspect-square w-full items-center justify-center rounded border border-edge bg-page p-2 text-center">
+                HEIC photo: download
+              </span>
+            )}
+            <span className="truncate" title={photo.name}>{photo.name}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}

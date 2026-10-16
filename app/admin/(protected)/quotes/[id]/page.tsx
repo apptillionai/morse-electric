@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateQuoteAction } from "@/app/admin/actions";
 import { PageHeader } from "@/components/admin/admin-shell";
-import { Detail, formatDate, StatusBadge } from "@/components/admin/inbox";
+import { Detail, formatDate, RequestPhotos, StatusBadge } from "@/components/admin/inbox";
 import { TriageForm } from "@/components/admin/triage-form";
 import { getQuote, QUOTE_STATUSES, STATUS_LABELS } from "@/lib/admin/requests";
 import { staffClient } from "@/lib/admin/auth";
@@ -35,6 +35,7 @@ export default async function QuotePage(props: PageProps<"/admin/quotes/[id]">) 
           </Detail>
           <Detail label="Quantity">{q.quantity}</Detail>
           <Detail label="Details">{q.details && <span className="whitespace-pre-line">{q.details}</span>}</Detail>
+          <Detail label="Photos">{q.photos.length > 0 && <RequestPhotos photos={q.photos} />}</Detail>
         </dl>
         <TriageForm
           action={updateQuoteAction.bind(null, q.id)}

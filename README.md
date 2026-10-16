@@ -16,8 +16,9 @@ Built with Next.js 16 (App Router), Tailwind CSS 4, Supabase (Postgres + Storage
 | `/quote` | Quote request (prefilled from a product with `?sku=`) |
 | `/service` | Repair services, service request form, field service |
 | `/contact` | Phone, address, hours |
+| `/policies/[slug]` | Terms of sale, returns, shipping & pickup, warranty and privacy. Wording is a draft with `[XX]` values to confirm: each page shows a draft notice and stays out of search results until its `draft` flag in `lib/policies.ts` is turned off. |
 
-Quote and service requests are stored in Supabase with a reference number (`Q-1001`, `SR-1001`). Staff get an email notification and customers get a confirmation.
+Quote and service requests are stored in Supabase with a reference number (`Q-1001`, `SR-1001`). Staff get an email notification and customers get a confirmation. Both forms take up to 4 photos (nameplate, damage, installation); the browser shrinks large photos first, and staff see them on the request in the admin.
 
 Every page has a **Light / Mid / Dark** theme switch in the top bar. The choice is saved in the browser. First-time visitors get the site default, which staff set at **/admin/settings** (Light out of the box; Mid, Dark or "match the device" are the other options). Colours are semantic tokens in `app/globals.css`; `__tests__/theme-contrast.test.ts` fails the build if any text or control pair drops below WCAG AA contrast in any theme.
 
@@ -54,7 +55,7 @@ Sign-in links use Supabase's **Email OTP expiration** (Authentication → Provid
 
 **CSV import rules:** rows match existing products by SKU (a new SKU creates a product); only the columns present in the file change; new products need a name and category. Common header names (`Part #`, `Horsepower`, `Qty on hand`, …) are recognised, and values like `$1,299`, `7½`, `TEFC` and `3 phase` are understood.
 
-Planned next: photo uploads on the public forms, then Phase 2 (cart, Stripe checkout, core charges, Net-30, payable quotes). See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
+Planned next: Phase 2 (cart, Stripe checkout, core charges, Net-30, payable quotes). See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
 
 ## Getting started
 

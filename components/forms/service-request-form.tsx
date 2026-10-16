@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
 import { submitServiceRequest } from "@/app/actions/requests";
 import { Button } from "@/components/ui/button";
 import { INITIAL_FORM_STATE } from "@/lib/requests/form-state";
 import { EQUIPMENT_TYPES, type EquipmentType } from "@/lib/requests/schemas";
 import { SignedInNote, useAccountPrefill } from "./account-prefill";
 import { CheckboxField, FormMessage, Honeypot, TextAreaField, TextField } from "./fields";
+import { PhotoField } from "./photo-field";
 import { RequestReceived } from "./request-received";
 import { Turnstile } from "./turnstile";
 
@@ -14,6 +15,7 @@ export function ServiceRequestForm({ phone }: { phone: string }) {
   const [state, formAction, pending] = useActionState(submitServiceRequest, INITIAL_FORM_STATE);
   const formRef = useRef<HTMLFormElement>(null);
   const profile = useAccountPrefill(formRef);
+  const [photosBusy, setPhotosBusy] = useState(false);
   const v = state.values ?? {};
   const e = state.fieldErrors ?? {};
 
@@ -88,10 +90,12 @@ export function ServiceRequestForm({ phone }: { phone: string }) {
         <CheckboxField label="Quote a replacement too" name="wantsReplacementQuote" defaultChecked={v.wantsReplacementQuote === "on"} />
       </fieldset>
 
+      <PhotoField error={e.photos} onBusyChange={setPhotosBusy} />
+
       {!profile && <Turnstile action="service" resetSignal={state} />}
 
       <div className="flex flex-wrap items-center gap-3.5">
-        <Button type="submit" size="lg" disabled={pending}>
+        <Button type="submit" size="lg" disabled={pending || photosBusy}>
           {pending ? "Sending…" : "Send request"}
         </Button>
         <span className="text-sm text-fg-muted">Line down after hours? Call {phone}.</span>

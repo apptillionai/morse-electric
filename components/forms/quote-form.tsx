@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
 import { submitQuoteRequest } from "@/app/actions/requests";
 import { Button } from "@/components/ui/button";
 import { INITIAL_FORM_STATE } from "@/lib/requests/form-state";
 import { SignedInNote, useAccountPrefill } from "./account-prefill";
 import { FormMessage, Honeypot, TextAreaField, TextField } from "./fields";
+import { PhotoField } from "./photo-field";
 import { RequestReceived } from "./request-received";
 import { Turnstile } from "./turnstile";
 
@@ -13,6 +14,7 @@ export function QuoteForm({ product }: { product: { sku: string; name: string } 
   const [state, formAction, pending] = useActionState(submitQuoteRequest, INITIAL_FORM_STATE);
   const formRef = useRef<HTMLFormElement>(null);
   const profile = useAccountPrefill(formRef);
+  const [photosBusy, setPhotosBusy] = useState(false);
   const v = state.values ?? {};
   const e = state.fieldErrors ?? {};
 
@@ -66,10 +68,12 @@ export function QuoteForm({ product }: { product: { sku: string; name: string } 
         placeholder="Nameplate details (make, HP, RPM, frame, voltage), application, or how soon you need it…"
       />
 
+      <PhotoField error={e.photos} onBusyChange={setPhotosBusy} />
+
       {!profile && <Turnstile action="quote" resetSignal={state} />}
 
       <div>
-        <Button type="submit" size="lg" disabled={pending}>
+        <Button type="submit" size="lg" disabled={pending || photosBusy}>
           {pending ? "Sending…" : "Send quote request"}
         </Button>
       </div>

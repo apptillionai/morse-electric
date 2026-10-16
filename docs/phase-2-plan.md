@@ -24,7 +24,7 @@ These are agreed defaults. Items marked **Morse to confirm** need a value or wor
 | Net-30 | Staff turn on terms and set a credit limit per customer. Billing goes through Stripe Invoicing (hosted payment page, ACH, automatic reminders). An order is blocked if open balance + order total would exceed the limit. | Who qualifies; default limit |
 | Accounting | Stripe is the system of record for now. Revisit a QuickBooks sync in step 5. | Which accounting software Morse uses |
 | Out of stock | Only in-stock items can be bought online. Out-of-stock items keep "Special order → request a quote". | — |
-| Policy pages | Terms of Sale, Returns, Shipping and Warranty pages go live before real payments. | The policy wording and warranty terms (still `[XX]-month`) |
+| Policy pages | Terms of Sale, Returns, Shipping, Warranty and Privacy pages are live as drafts at `/policies/…`. They go final before real payments. | The policy wording and every bracketed `[XX]` value |
 
 ## Design
 
@@ -103,7 +103,7 @@ These are agreed defaults. Items marked **Morse to confirm** need a value or wor
 
 1. **Payable quotes.** This has the biggest payoff, because most industrial items will stay price-on-request. Staff price a quote request in the admin (lines, cores, shipping), and the customer gets a link to accept and pay, or charge it to Net-30. An accepted quote becomes an order, and `quote_status` moves to `won`.
 2. **Approve and pay for repairs online.** Service jobs already have a Quote stage. The customer approves or declines the repair quote in `/account`, and pays the final invoice online when the job is Ready.
-3. **Photo uploads on the public forms.** This was already planned before Phase 2: nameplate photos speed up both quotes and repairs.
+3. **Photo uploads on the public forms.** Done in Step 0: nameplate photos speed up both quotes and repairs.
 4. **Equipment list per customer.** A customer's motors with their nameplate details, repair history and "order this again". This suits plant maintenance managers.
 5. **Cross-reference search.** Search by a competitor's or the original manufacturer's part number in the part finder.
 6. **Google Shopping free listings.** Add shipping and return details to the Product JSON-LD and publish a Merchant Center feed.
@@ -115,7 +115,7 @@ Each step is its own PR. Every PR passes `npm run lint`, `npm run typecheck`, `n
 
 | Step | Ships | Depends on |
 | --- | --- | --- |
-| 0 | Photo uploads on the public forms; policy pages (with placeholder wording); Stripe account in test mode | — |
+| 0 | Photo uploads on the public forms ✅; policy pages with placeholder wording (terms of sale, returns, shipping, warranty, privacy) ✅; Stripe account in test mode (Morse sets this up) | — |
 | 1 | Cart, card/ACH checkout for parcel and pickup items, orders, webhook, stock reservations, emails, `/admin/orders`, `/account/orders`, store switch and shipping settings | Step 0 |
 | 2 | Core charges at checkout, core returns tracking, refunds and credits, reminders | Step 1 |
 | 3 | Net-30 terms, credit limits, Stripe Invoicing, the "Request a business account" form | Step 1 |

@@ -258,7 +258,7 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
             <h2 className="display mt-2 text-3xl">Warranty</h2>
             <p className="text-sm leading-relaxed text-fg-muted">
               New units carry the manufacturer’s warranty. Remanufactured and exchange units carry Morse’s [XX]-month
-              shop warranty.
+              shop warranty. <Link href="/policies/warranty">Warranty details</Link>
             </p>
           </section>
         </div>
