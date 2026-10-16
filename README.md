@@ -54,7 +54,7 @@ Sign-in links use Supabase's **Email OTP expiration** (Authentication → Provid
 
 **CSV import rules:** rows match existing products by SKU (a new SKU creates a product); only the columns present in the file change; new products need a name and category. Common header names (`Part #`, `Horsepower`, `Qty on hand`, …) are recognised, and values like `$1,299`, `7½`, `TEFC` and `3 phase` are understood.
 
-Planned next: photo uploads on the public forms, then Phase 2 (cart, Stripe checkout, accounts, core charges, Net-30).
+Planned next: photo uploads on the public forms, then Phase 2 (cart, Stripe checkout, core charges, Net-30, payable quotes). See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
 
 ## Getting started
 
