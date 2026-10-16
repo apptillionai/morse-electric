@@ -9,7 +9,7 @@ Last updated: Phase 2, step 2 (core charges).
 - [ ] Review [PR #8](https://github.com/apptillionai/morse-electric/pull/8) (Phase 2 plan, steps 0–2) and merge it.
 - [x] ✅ Request-photos migration applied to the live database.
 - [x] ✅ Orders migration applied to the live database.
-- [ ] Core-returns migration (`20261016180000_core_returns.sql`) applied to the live database. Claude does this once you say so. **It must happen before the merge**: the admin dashboard and order pages read the new table.
+- [x] ✅ Core-returns migration applied to the live database.
 - [ ] After the merge, send one quote request with a photo on the live site and open it in Admin → Quotes to check the photo shows. (Previews can't save requests: they don't have `SUPABASE_SECRET_KEY`.)
 
 ## 2. Vercel environment variables
