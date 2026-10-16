@@ -12,6 +12,8 @@ export const LISTED_ORDER_STATUSES = ORDER_STATUSES.filter((s) => s !== "checkou
  */
 export const NEXT_STEPS: Partial<Record<OrderStatus, { ship: OrderStatus[]; pickup: OrderStatus[] }>> = {
   paid: { ship: ["processing", "shipped"], pickup: ["processing", "ready_for_pickup"] },
+  // Net-30: fulfilled straight away; the invoice is paid later.
+  invoiced: { ship: ["processing", "shipped"], pickup: ["processing", "ready_for_pickup"] },
   processing: { ship: ["shipped"], pickup: ["ready_for_pickup"] },
   shipped: { ship: ["completed"], pickup: [] },
   ready_for_pickup: { ship: [], pickup: ["completed"] },
@@ -47,7 +49,7 @@ export async function orderCounts(supabase: SupabaseClient) {
   const count = (statuses: OrderStatus[]) =>
     supabase.from("orders").select("id", { count: "exact", head: true }).in("status", statuses);
   const [toFulfil, awaitingPayment, readyForPickup] = await Promise.all([
-    count(["paid", "processing"]),
+    count(["invoiced", "paid", "processing"]),
     count(["pending_payment"]),
     count(["ready_for_pickup"]),
   ]);

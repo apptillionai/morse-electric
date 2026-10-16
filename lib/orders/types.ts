@@ -2,13 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ProductCondition } from "@/lib/catalog/types";
 
 export const ORDER_STATUSES = [
-  "checkout", "pending_payment", "paid", "processing", "shipped", "ready_for_pickup", "completed", "cancelled", "refunded",
+  "checkout", "pending_payment", "invoiced", "paid", "processing", "shipped", "ready_for_pickup", "completed", "cancelled", "refunded",
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   checkout: "In checkout",
   pending_payment: "Awaiting bank payment",
+  invoiced: "Charged to account",
   paid: "Paid",
   processing: "Being prepared",
   shipped: "Shipped",
@@ -19,7 +20,14 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 /** Orders staff still have to act on. */
-export const OPEN_ORDER_STATUSES: OrderStatus[] = ["pending_payment", "paid", "processing", "ready_for_pickup"];
+export const OPEN_ORDER_STATUSES: OrderStatus[] = ["pending_payment", "invoiced", "paid", "processing", "ready_for_pickup"];
+
+export const INVOICE_STATUS_LABELS: Record<string, string> = {
+  open: "Invoice open",
+  paid: "Invoice paid",
+  void: "Invoice voided",
+  uncollectible: "Invoice marked uncollectible",
+};
 
 export interface OrderItem {
   id: string;
@@ -58,6 +66,12 @@ export interface Order {
   payment_method: "card" | "ach" | "net30" | "other" | null;
   stripe_checkout_session_id: string | null;
   stripe_payment_intent_id: string | null;
+  /** Net-30 orders: the Stripe invoice. */
+  stripe_invoice_id: string | null;
+  invoice_url: string | null;
+  invoice_status: "open" | "paid" | "void" | "uncollectible" | null;
+  invoice_due_date: string | null;
+  invoice_paid_at: string | null;
   carrier: string | null;
   tracking_number: string | null;
   cancel_reason: string | null;

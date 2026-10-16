@@ -6,11 +6,19 @@ import { getSiteSettings } from "@/lib/site-settings";
 import { SITE } from "@/lib/site";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CartLine } from "./cart";
-import { priceCart, shippingCents, type Fulfillment } from "./pricing";
+import { priceCart, shippingCents, type Fulfillment, type PricedCart } from "./pricing";
 import { getStripe, loadBuyableProducts } from "./store";
 
 /** Stripe needs at least 30 minutes; stock stays reserved this long. */
 const CHECKOUT_MINUTES = 31;
+
+export interface PostalAddress {
+  line1: string;
+  line2: string | null;
+  city: string | null;
+  state: string | null;
+  postal_code: string | null;
+}
 
 export interface CheckoutCustomer {
   id: string;
@@ -18,10 +26,21 @@ export interface CheckoutCustomer {
   name: string;
   taxExempt: boolean;
   stripeCustomerId: string | null;
+  /** Needed for invoices (Stripe Tax works from it); Checkout collects its own. */
+  address?: PostalAddress | null;
+  shipping?: (PostalAddress & { name: string }) | null;
 }
 
 /** Why checkout didn't start; the cart page explains each one (CHECKOUT_ERRORS). */
-export type CheckoutError = "unavailable" | "changed" | "empty" | "sold_out" | "no_shipping";
+export type CheckoutError =
+  | "unavailable"
+  | "changed"
+  | "empty"
+  | "sold_out"
+  | "no_shipping"
+  | "over_limit"
+  | "not_on_terms"
+  | "no_address";
 
 export const CHECKOUT_ERRORS: Record<CheckoutError, string> = {
   unavailable: "Online checkout isn’t available right now. Please call us to order.",
@@ -29,6 +48,9 @@ export const CHECKOUT_ERRORS: Record<CheckoutError, string> = {
   empty: "Your cart is empty.",
   sold_out: "Someone just bought the last of something in your cart. Check it and try again.",
   no_shipping: "We can’t ship this order. Choose pickup, or call us for a freight quote.",
+  over_limit: "This order would go over your account’s credit limit. Pay by card or bank transfer instead, or call us.",
+  not_on_terms: "Your account isn’t set up for Net-30 terms. Pay by card or bank transfer instead.",
+  no_address: "Add your company address in Company details first, so we can invoice (and ship) the order.",
 };
 
 export function isCheckoutError(value: unknown): value is CheckoutError {
@@ -40,8 +62,16 @@ export type CheckoutResult =
   /** `cleaned`: the cart as it should now be, when it changed under the customer. */
   | { ok: false; error: CheckoutError; cleaned?: CartLine[] };
 
-type Admin = ReturnType<typeof createAdminClient>;
+export type Admin = ReturnType<typeof createAdminClient>;
 
+
+const stripeAddress = (a: PostalAddress) => ({
+  line1: a.line1,
+  line2: a.line2 ?? undefined,
+  city: a.city ?? undefined,
+  state: a.state ?? undefined,
+  postal_code: a.postal_code ?? undefined,
+});
 
 /** Cancel a checkout this browser started earlier, releasing its stock. Never throws. */
 export async function abandonCheckout(orderId: string): Promise<void> {
@@ -66,37 +96,52 @@ export async function abandonCheckout(orderId: string): Promise<void> {
   }
 }
 
-async function stripeCustomerFor(stripe: Stripe, supabase: Admin, customer: CheckoutCustomer): Promise<string> {
-  const taxExempt = customer.taxExempt ? "exempt" : "none";
+export async function stripeCustomerFor(stripe: Stripe, supabase: Admin, customer: CheckoutCustomer): Promise<string> {
+  const details = {
+    tax_exempt: customer.taxExempt ? ("exempt" as const) : ("none" as const),
+    ...(customer.address ? { address: { country: "US", ...stripeAddress(customer.address) } } : {}),
+    ...(customer.shipping
+      ? { shipping: { name: customer.shipping.name, address: { country: "US", ...stripeAddress(customer.shipping) } } }
+      : {}),
+  };
   if (customer.stripeCustomerId) {
-    await stripe.customers.update(customer.stripeCustomerId, { tax_exempt: taxExempt });
+    await stripe.customers.update(customer.stripeCustomerId, details);
     return customer.stripeCustomerId;
   }
   const created = await stripe.customers.create({
     email: customer.email,
     name: customer.name,
-    tax_exempt: taxExempt,
+    ...details,
     metadata: { morse_customer_id: customer.id },
   });
   await supabase.from("customers").update({ stripe_customer_id: created.id }).eq("user_id", customer.id);
   return created.id;
 }
 
-/**
- * Turn the cart into an order awaiting payment, reserve its stock and open a
- * Stripe Checkout session for it. Everything is priced again here from the
- * catalog, so the cookie only ever says what and how many.
- */
-export async function createCheckout(input: {
-  cart: CartLine[];
-  fulfillment: Fulfillment;
-  origin: string;
-  customer: CheckoutCustomer | null;
-}): Promise<CheckoutResult> {
-  const stripe = getStripe();
-  if (!stripe) return { ok: false, error: "unavailable" };
-  const supabase = createAdminClient();
+type OpenedOrder =
+  | {
+      ok: true;
+      order: { id: string; reference: string };
+      cart: PricedCart;
+      shipping: number;
+      returnDays: number;
+      /** Unix seconds when the stock reservation lapses. */
+      expiresAt: number;
+      /** Cancel the order and release its stock. */
+      cancel: () => Promise<void>;
+    }
+  | { ok: false; error: CheckoutError; cleaned?: CartLine[] };
 
+/**
+ * Price the cart again from the catalog, create the order (status
+ * 'checkout') with its items, and reserve the stock. Shared by card checkout
+ * and Net-30 orders, so both charge exactly what the cart page showed.
+ */
+export async function openOrder(
+  supabase: Admin,
+  input: { cart: CartLine[]; fulfillment: Fulfillment; customer: CheckoutCustomer | null },
+  extra: Record<string, unknown> = {},
+): Promise<OpenedOrder> {
   // Free stock held by checkouts whose expiry event never arrived.
   await supabase.rpc("release_stale_checkouts").then(
     ({ error }) => error && console.error("[checkout] release stale:", error.message),
@@ -105,14 +150,10 @@ export async function createCheckout(input: {
   const { shippingRates, coreReturnDays: returnDays } = await getSiteSettings();
   const products = await loadBuyableProducts(input.cart.map((l) => l.productId));
   const cart = priceCart(input.cart, products, shippingRates);
-  if (cart.adjustments.length) {
-    return { ok: false, error: "changed", cleaned: cart.cleaned };
-  }
+  if (cart.adjustments.length) return { ok: false, error: "changed", cleaned: cart.cleaned };
   if (!cart.lines.length) return { ok: false, error: "empty" };
   const shipping = shippingCents(cart, input.fulfillment);
-  if (shipping === null) {
-    return { ok: false, error: "no_shipping" };
-  }
+  if (shipping === null) return { ok: false, error: "no_shipping" };
 
   const expiresAt = Math.floor(Date.now() / 1000) + CHECKOUT_MINUTES * 60;
   const { data: order, error: orderError } = await supabase
@@ -127,6 +168,7 @@ export async function createCheckout(input: {
       shipping_cents: shipping,
       total_cents: cart.subtotalCents + cart.coreCents + shipping,
       expires_at: new Date(expiresAt * 1000).toISOString(),
+      ...extra,
     })
     .select("id, reference")
     .single();
@@ -135,7 +177,9 @@ export async function createCheckout(input: {
     return { ok: false, error: "unavailable" };
   }
 
-  const cancel = () => supabase.rpc("cancel_checkout", { p_order_id: order.id });
+  const cancel = async () => {
+    await supabase.rpc("cancel_checkout", { p_order_id: order.id });
+  };
 
   const { error: itemsError } = await supabase.from("order_items").insert(
     cart.lines.map((l, i) => ({
@@ -161,12 +205,28 @@ export async function createCheckout(input: {
   if (reserveError || !reserved) {
     if (reserveError) console.error("[checkout] reserve:", reserveError.message);
     await cancel();
-    return {
-      ok: false,
-      error: reserveError ? "unavailable" : "sold_out",
-      cleaned: input.cart,
-    };
+    return { ok: false, error: reserveError ? "unavailable" : "sold_out", cleaned: input.cart };
   }
+  return { ok: true, order, cart, shipping, returnDays, expiresAt, cancel };
+}
+
+/**
+ * Turn the cart into an order awaiting payment, reserve its stock and open a
+ * Stripe Checkout session for it. Everything is priced again here from the
+ * catalog, so the cookie only ever says what and how many.
+ */
+export async function createCheckout(input: {
+  cart: CartLine[];
+  fulfillment: Fulfillment;
+  origin: string;
+  customer: CheckoutCustomer | null;
+}): Promise<CheckoutResult> {
+  const stripe = getStripe();
+  if (!stripe) return { ok: false, error: "unavailable" };
+  const supabase = createAdminClient();
+  const opened = await openOrder(supabase, input);
+  if (!opened.ok) return opened;
+  const { order, cart, shipping, returnDays, expiresAt, cancel } = opened;
 
   try {
     const customer = input.customer ? await stripeCustomerFor(stripe, supabase, input.customer) : undefined;

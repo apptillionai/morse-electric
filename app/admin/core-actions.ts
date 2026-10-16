@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/admin/auth";
 import { getCore } from "@/lib/admin/cores";
 import { sendOrderEmails } from "@/lib/orders/email";
+import { creditInvoice } from "@/lib/orders/net30";
 import { getStripe } from "@/lib/orders/store";
 import { createSessionClient } from "@/lib/supabase/server";
 
@@ -55,21 +56,24 @@ export async function updateCoreAction(coreId: string, _prev: CoreActionState, f
     }
     case "credit": {
       if (core.status !== "received") return { error: "Mark the core as received before refunding it." };
-      if (!core.order.stripe_payment_intent_id) return { error: "This order has no Stripe payment to refund. Refund it another way and add a note." };
+      const { stripe_payment_intent_id: paymentIntent, stripe_invoice_id: invoiceId } = core.order;
+      if (!paymentIntent && !invoiceId) return { error: "This order has no Stripe payment to refund. Refund it another way and add a note." };
       const stripe = getStripe();
       if (!stripe) return { error: "Stripe isn’t configured, so the core charge can’t be refunded from here." };
       let refundId: string;
+      const metadata = { order_id: core.order_id, core_return_id: core.id, reason: "core returned" };
       try {
-        const refund = await stripe.refunds.create(
-          {
-            payment_intent: core.order.stripe_payment_intent_id,
-            amount: owed,
-            metadata: { order_id: core.order_id, core_return_id: core.id, reason: "core returned" },
-          },
-          // One refund per core, even if the button is pressed twice.
-          { idempotencyKey: `core-${core.id}` },
-        );
-        refundId = refund.id;
+        // One refund or credit per core, even if the button is pressed twice.
+        if (invoiceId) {
+          // Net-30: take it off the invoice, or credit their account if it's already paid.
+          refundId = await creditInvoice(stripe, invoiceId, owed, `core-${core.id}`, metadata);
+        } else {
+          const refund = await stripe.refunds.create(
+            { payment_intent: paymentIntent!, amount: owed, metadata },
+            { idempotencyKey: `core-${core.id}` },
+          );
+          refundId = refund.id;
+        }
       } catch (error) {
         return { error: `Stripe refused the refund: ${error instanceof Error ? error.message : String(error)}` };
       }

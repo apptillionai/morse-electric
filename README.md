@@ -32,6 +32,7 @@ Customers can buy in-stock items online and pay by card (including Apple Pay and
 | `/checkout/success` | The order confirmation Stripe returns customers to |
 | `/account/orders` | A signed-in customer's orders, with status, tracking and "Order again" |
 | `/admin/orders` | Orders to fulfil: mark as being prepared, shipped (with tracking) or ready for pickup, then completed; cancel or refund in full; staff notes |
+| `/account/request` | "Request a business account": a public form staff review at /admin/customers, with an option to apply for Net-30 terms |
 | `/admin/cores` | Core returns: what customers owe back, overdue ones first; mark received, then accept and refund the core charge, or reject with a reason; extend a due date |
 
 **What can be bought online:** active products with a price, in stock, that ship by parcel or are pickup-only. Freight (LTL) items stay "Request a quote", and so do exchange units until they have a core charge set.
@@ -42,9 +43,11 @@ Customers can buy in-stock items online and pay by card (including Apple Pay and
 
 **Stock:** starting checkout reserves the stock for 31 minutes (`inventory.qty_reserved`, so the item can show as out of stock to others). Payment takes it off the shelf, and an abandoned checkout releases it. ACH orders hold their stock while the bank payment clears; a failed payment puts it back. All of this happens in database functions (`supabase/migrations/20261016170815_orders.sql`), so a repeated Stripe event never moves stock twice.
 
+**Net-30 terms:** staff put a customer on Net-30 with a credit limit on the customer's admin page. That customer then sees "Charge to my account" at checkout, with their available credit. The order skips Stripe Checkout: the database checks the limit (unpaid invoices plus this order, with the account locked), places the order as "Charged to account" and takes the stock. Then a Stripe invoice is created, finalized and emailed, due in 30 days, with Stripe Tax worked out from the address on the customer's profile. The order is ready to fulfil straight away. Stripe's `invoice.paid`, `invoice.voided` and `invoice.marked_uncollectible` events keep the invoice status on the order up to date. Cancelling an order voids its invoice (or credits and refunds it if paid), and a returned core is taken off the invoice, or credited to the next one. New customers can ask for an account (and terms) at /account/request; staff see the requests on /admin/customers and invite with one click.
+
 **Setting up Stripe:**
 1. Set `STRIPE_SECRET_KEY` in Vercel. Use a test key (`sk_test_…`) for previews and the live key for production.
-2. In Stripe → Developers → Webhooks, add an endpoint at `https://morseelectricmotor.com/api/stripe/webhook` with these events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`. Put its signing secret in `STRIPE_WEBHOOK_SECRET`.
+2. In Stripe → Developers → Webhooks, add an endpoint at `https://morseelectricmotor.com/api/stripe/webhook` with these events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `invoice.paid`, `invoice.voided`, `invoice.marked_uncollectible`. Put its signing secret in `STRIPE_WEBHOOK_SECRET`.
 3. Turn on Stripe Tax (Settings → Tax): set the shop's origin address and add a Massachusetts registration, plus any other state where Morse collects tax. Checkout calculates tax automatically, and approved tax-exempt customers are marked exempt in Stripe when they check out signed in.
 4. In Settings → Payment methods, turn on cards, Apple Pay / Google Pay and ACH Direct Debit (US bank account).
 5. Set `CRON_SECRET` in Vercel (any long random string) for the core-return reminders.
@@ -61,7 +64,7 @@ Everything still to do before launch, for you and for Morse, is in [`docs/launch
 | `/admin/import` | CSV import with a preview (new, updated, unchanged, problems by row) before anything is saved; template download |
 | `/admin/products/export` | The whole catalog as CSV, in the same format the importer reads |
 | `/admin/quotes`, `/admin/service` | Request inboxes with status and private staff notes |
-| `/admin/customers` | Invite customers, approve tax exemption, make new sign-in links, remove accounts |
+| `/admin/customers` | Business account requests to invite or dismiss; invite customers, approve tax exemption, set Net-30 terms and credit limits, make new sign-in links, remove accounts |
 
 **Adding a staff member:** create the user in the Supabase dashboard (Authentication → Users → Add user), then run in the SQL editor:
 
@@ -85,7 +88,7 @@ Sign-in links use Supabase's **Email OTP expiration** (Authentication → Provid
 
 **CSV import rules:** rows match existing products by SKU (a new SKU creates a product); only the columns present in the file change; new products need a name and category. Common header names (`Part #`, `Horsepower`, `Qty on hand`, …) are recognised, and values like `$1,299`, `7½`, `TEFC` and `3 phase` are understood.
 
-Phase 2 is in progress: the online store (step 1) and core charges (step 2) are built; next come Net-30 terms and payable quotes. See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
+Phase 2 is in progress: the online store (step 1), core charges (step 2) and Net-30 terms (step 3) are built; next come payable quotes and online repair approval. See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
 
 ## Getting started
 

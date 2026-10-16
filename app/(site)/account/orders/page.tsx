@@ -34,6 +34,10 @@ export default async function AccountOrdersPage() {
   if (error) throw new Error(`Orders: ${error.message}`);
   const orders = data as Row[];
   const business = await getBusiness();
+  const openBalance =
+    customer.terms === "net30"
+      ? (((await (await createSessionClient()).rpc("my_open_balance_cents")).data as number | null) ?? 0)
+      : 0;
   const owed = orders.flatMap((o) =>
     o.cores
       .filter((c) => c.status === "awaiting")
@@ -42,6 +46,13 @@ export default async function AccountOrdersPage() {
 
   return (
     <AccountShell current="/account/orders" name={customer.name} company={customer.company}>
+      {customer.terms === "net30" && (
+        <p className="rounded-md border border-edge bg-surface p-4 text-sm">
+          <strong>Net-30 account.</strong> {formatPrice(Math.max(0, customer.credit_limit_cents - openBalance))} of{" "}
+          {formatPrice(customer.credit_limit_cents)} credit available
+          {openBalance > 0 && <> ({formatPrice(openBalance)} in unpaid invoices)</>}. Choose “Charge to my account” at checkout.
+        </p>
+      )}
       {owed.length > 0 && (
         <section aria-labelledby="cores-heading" className="flex flex-col gap-3 rounded-md border-2 border-warn bg-surface p-5">
           <h2 id="cores-heading" className="font-display text-2xl font-bold uppercase tracking-[0.03em]">Cores to return</h2>

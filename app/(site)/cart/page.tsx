@@ -7,7 +7,9 @@ import { CHECKOUT_ERRORS, isCheckoutError } from "@/lib/orders/checkout";
 import { MAX_LINE_QUANTITY } from "@/lib/orders/cart";
 import { priceCart } from "@/lib/orders/pricing";
 import { loadBuyableProducts, readCart, storeIsOpen } from "@/lib/orders/store";
+import { getSignedInUser } from "@/lib/customers/account";
 import { getBusiness, getSiteSettings } from "@/lib/site-settings";
+import { createSessionClient } from "@/lib/supabase/server";
 import { formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Cart", robots: { index: false } };
@@ -44,6 +46,12 @@ export default async function CartPage(props: PageProps<"/cart">) {
   const [lines, { shippingRates, coreReturnDays }] = await Promise.all([readCart(), getSiteSettings()]);
   const cart = priceCart(lines, await loadBuyableProducts(lines.map((l) => l.productId)), shippingRates);
   const error = one("error");
+  // Net-30 customers can charge orders to their account, up to their available credit.
+  const user = await getSignedInUser().catch(() => null);
+  const terms = user?.customer?.terms === "net30" ? user.customer : null;
+  const available = terms
+    ? Math.max(0, terms.credit_limit_cents - (((await (await createSessionClient()).rpc("my_open_balance_cents")).data as number | null) ?? 0))
+    : 0;
   const added = cart.lines.find((l) => l.product.slug === one("added"));
   const canShip = cart.shipping.available;
   const preferPickup = one("fulfillment") === "pickup" || !canShip;
@@ -144,6 +152,29 @@ export default async function CartPage(props: PageProps<"/cart">) {
               </label>
             </fieldset>
 
+            {terms && (
+              <fieldset className="flex flex-col gap-3">
+                <legend className="mb-1 font-display text-xl font-bold uppercase tracking-[0.04em]">Payment</legend>
+                <label className="flex cursor-pointer gap-3 rounded border border-edge-strong p-3 has-checked:border-bold">
+                  <input type="radio" name="payment" value="now" defaultChecked={one("payment") !== "account"} className="mt-1 size-[18px] accent-fg" />
+                  <span className="flex flex-col gap-0.5">
+                    <strong>Pay now</strong>
+                    <span className="text-sm text-fg-muted">Card or bank transfer (ACH) on Stripe’s secure page.</span>
+                  </span>
+                </label>
+                <label className="flex cursor-pointer gap-3 rounded border border-edge-strong p-3 has-checked:border-bold">
+                  <input type="radio" name="payment" value="account" defaultChecked={one("payment") === "account"} className="mt-1 size-[18px] accent-fg" />
+                  <span className="flex flex-col gap-0.5">
+                    <strong>Charge to my account (Net-30)</strong>
+                    <span className="text-sm text-fg-muted">
+                      {money(available)} of {money(terms.credit_limit_cents)} credit available. We email an invoice due in 30 days
+                      {terms.ship_line1 ? `, and ship to ${terms.ship_line1}, ${terms.ship_city ?? ""}` : ""}.
+                    </span>
+                  </span>
+                </label>
+              </fieldset>
+            )}
+
             <dl className="flex flex-col gap-2 border-t border-edge pt-4 text-sm">
               <div className="flex justify-between gap-4">
                 <dt>Subtotal</dt>
@@ -165,7 +196,7 @@ export default async function CartPage(props: PageProps<"/cart">) {
               </div>
             </dl>
 
-            <Button type="submit" size="lg">Checkout</Button>
+            <Button type="submit" size="lg">{terms ? "Place order" : "Checkout"}</Button>
             <p className="text-[13px] text-fg-muted">
               You’ll pay on Stripe’s secure page by card or bank transfer (ACH). By ordering you agree to our{" "}
               <Link href="/policies/terms-of-sale">terms of sale</Link>, <Link href="/policies/returns">returns</Link> and{" "}

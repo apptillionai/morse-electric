@@ -39,6 +39,19 @@ export const profileSchema = z
   });
 export type ProfileInput = z.output<typeof profileSchema>;
 
+export const ACCOUNT_REQUEST_FIELDS = ["name", "company", "email", "phone", "wantsTerms", "details"] as const;
+
+/** The public "Request a business account" form. */
+export const accountRequestSchema = z.object({
+  name: requiredText("name", 120),
+  company: requiredText("company name", 160),
+  email,
+  phone,
+  wantsTerms: checkbox,
+  details: optionalText(4000),
+});
+export type AccountRequestInput = z.output<typeof accountRequestSchema>;
+
 export const INVITE_FIELDS = ["email", "name", "company", "phone"] as const;
 
 /** What staff enter to invite a customer. */

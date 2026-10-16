@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireStaff } from "@/lib/admin/auth";
 import { getOrderForStaff, NEXT_STEPS } from "@/lib/admin/orders";
 import { sendOrderEmails } from "@/lib/orders/email";
+import { settleInvoiceForCancel } from "@/lib/orders/net30";
 import { getStripe } from "@/lib/orders/store";
 import type { OrderStatus } from "@/lib/orders/types";
 import { formFields } from "@/lib/requests/schemas";
@@ -57,8 +58,9 @@ export async function advanceOrderAction(orderId: string, _prev: OrderActionStat
 
 /**
  * Cancel (before it ships) or refund (after) an order: refund the full
- * payment in Stripe, then close the order, optionally restocking it.
- * Partial refunds are done in the Stripe dashboard.
+ * payment in Stripe (for Net-30, void or credit the invoice), then close the
+ * order, optionally restocking it. Partial refunds are done in the Stripe
+ * dashboard.
  */
 export async function closeOrderAction(orderId: string, _prev: OrderActionState, formData: FormData): Promise<OrderActionState> {
   await requireStaff();
@@ -72,12 +74,21 @@ export async function closeOrderAction(orderId: string, _prev: OrderActionState,
   if (order.status === "pending_payment") {
     return { error: "The bank payment is still clearing. Wait until it clears (or fails) before cancelling." };
   }
-  if (!["paid", "processing", "ready_for_pickup", "shipped", "completed"].includes(order.status)) {
+  if (!["invoiced", "paid", "processing", "ready_for_pickup", "shipped", "completed"].includes(order.status)) {
     return { error: "This order can’t be cancelled or refunded." };
   }
   const restock = formData.get("restock") === "on";
 
-  if (order.stripe_payment_intent_id && order.total_cents > 0) {
+  if (order.stripe_invoice_id) {
+    // Net-30: void the invoice, or credit and refund it if it was already paid.
+    const stripe = getStripe();
+    if (!stripe) return { error: "Stripe isn’t configured, so the invoice can’t be voided from here." };
+    try {
+      await settleInvoiceForCancel(stripe, order.stripe_invoice_id, order.id);
+    } catch (error) {
+      return { error: `Stripe refused to void or credit the invoice: ${error instanceof Error ? error.message : String(error)}` };
+    }
+  } else if (order.stripe_payment_intent_id && order.total_cents > 0) {
     const stripe = getStripe();
     if (!stripe) return { error: "Stripe isn’t configured, so the payment can’t be refunded from here." };
     try {

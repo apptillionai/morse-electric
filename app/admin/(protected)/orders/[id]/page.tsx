@@ -7,6 +7,7 @@ import { AdvanceOrderForm, CloseOrderForm, OrderNotesForm } from "@/components/a
 import { OrderSummary } from "@/components/orders/order-summary";
 import { staffClient } from "@/lib/admin/auth";
 import { getOrderForStaff, NEXT_STEPS } from "@/lib/admin/orders";
+import { formatDueDate, INVOICE_STATUS_LABELS } from "@/lib/orders/types";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -21,7 +22,7 @@ export default async function OrderPage(props: PageProps<"/admin/orders/[id]">) 
   if (!order || order.status === "checkout") notFound();
 
   const steps = NEXT_STEPS[order.status]?.[order.fulfillment] ?? [];
-  const closable = ["paid", "processing", "ready_for_pickup", "shipped", "completed"].includes(order.status);
+  const closable = ["invoiced", "paid", "processing", "ready_for_pickup", "shipped", "completed"].includes(order.status);
   const stripeUrl = order.stripe_payment_intent_id
     ? `https://dashboard.stripe.com/${order.stripe_checkout_session_id?.startsWith("cs_test_") ? "test/" : ""}payments/${order.stripe_payment_intent_id}`
     : null;
@@ -47,6 +48,20 @@ export default async function OrderPage(props: PageProps<"/admin/orders/[id]">) 
               {order.payment_method ? PAYMENT[order.payment_method] : null}
               {stripeUrl && <> · <a href={stripeUrl} target="_blank" rel="noreferrer">View in Stripe</a></>}
             </Detail>
+            {order.stripe_invoice_id && (
+              <Detail label="Invoice">
+                {order.invoice_status ? INVOICE_STATUS_LABELS[order.invoice_status] : "Not sent"}
+                {order.invoice_status === "open" && order.invoice_due_date && <>, due {formatDueDate(order.invoice_due_date)}</>}
+                {" "}·{" "}
+                <a
+                  href={`https://dashboard.stripe.com/invoices/${order.stripe_invoice_id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View in Stripe
+                </a>
+              </Detail>
+            )}
             {order.paid_at && <Detail label="Paid">{formatDate(order.paid_at)}</Detail>}
             {order.shipped_at && <Detail label="Shipped">{formatDate(order.shipped_at)}</Detail>}
           </dl>

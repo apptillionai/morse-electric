@@ -7,7 +7,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 /**
  * Stripe webhook. In the Stripe dashboard, send these events here:
  * checkout.session.completed, checkout.session.async_payment_succeeded,
- * checkout.session.async_payment_failed and checkout.session.expired.
+ * checkout.session.async_payment_failed and checkout.session.expired, plus
+ * invoice.paid, invoice.voided and invoice.marked_uncollectible (Net-30).
  */
 export async function POST(request: NextRequest) {
   const stripe = getStripe();

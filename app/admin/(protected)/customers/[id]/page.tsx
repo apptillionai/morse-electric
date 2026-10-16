@@ -2,13 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { removeCustomerAction, setTaxExemptAction } from "@/app/admin/actions";
 import { PageHeader } from "@/components/admin/admin-shell";
-import { NewSignInLinkForm } from "@/components/admin/customer-forms";
+import { NewSignInLinkForm, TermsForm } from "@/components/admin/customer-forms";
 import { DeleteButton } from "@/components/admin/delete-button";
 import { Detail, formatDate, StatusBadge } from "@/components/admin/inbox";
 import { Button } from "@/components/ui/button";
 import { staffClient } from "@/lib/admin/auth";
 import { getCustomerDetail, getSignInInfo } from "@/lib/admin/customers";
 import { EQUIPMENT_TYPES } from "@/lib/requests/schemas";
+import { formatPrice } from "@/lib/utils";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -26,7 +27,7 @@ export default async function CustomerPage(props: PageProps<"/admin/customers/[i
   const supabase = await staffClient();
   const [found, signIn] = await Promise.all([getCustomerDetail(supabase, id), getSignInInfo(id)]);
   if (!found) notFound();
-  const { customer: c, quotes, service } = found;
+  const { customer: c, quotes, service, openBalanceCents } = found;
   const cert = c.tax_cert_path
     ? (await supabase.storage.from("customer-documents").createSignedUrl(c.tax_cert_path, 600)).data?.signedUrl ?? null
     : null;
@@ -114,6 +115,16 @@ export default async function CustomerPage(props: PageProps<"/admin/customers/[i
               </label>
               <Button type="submit" variant="dark" size="sm">Save</Button>
             </form>
+          </section>
+          <section aria-labelledby="c-terms" className="flex flex-col gap-3 rounded-md border border-edge bg-surface p-5">
+            <h2 id="c-terms" className="font-display text-xl font-bold uppercase tracking-[0.04em]">Payment terms</h2>
+            {(c.terms === "net30" || openBalanceCents > 0) && (
+              <p className="text-sm">
+                Unpaid Net-30 invoices: <strong>{formatPrice(openBalanceCents)}</strong>
+                {c.terms === "net30" && <> · {formatPrice(Math.max(0, c.credit_limit_cents - openBalanceCents))} credit available</>}
+              </p>
+            )}
+            <TermsForm customerId={c.user_id} terms={c.terms} limitCents={c.credit_limit_cents} />
           </section>
           <section aria-labelledby="c-login" className="flex flex-col gap-3 rounded-md border border-edge bg-surface p-5">
             <h2 id="c-login" className="font-display text-xl font-bold uppercase tracking-[0.04em]">Sign-in</h2>

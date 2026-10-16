@@ -17,6 +17,8 @@ export type OrderEmailKind =
   | "ready"
   | "cancelled"
   | "refunded"
+  // Net-30: Stripe reports the invoice paid (staff only).
+  | "invoice_paid"
   // About one core return (pass its id):
   | "core_reminder"
   | "core_overdue"
@@ -97,7 +99,11 @@ async function customerMessage(kind: OrderEmailKind, order: OrderWithItems, core
     case "core_credited":
       return core && {
         subject: `Core refund for order ${ref}`,
-        lines: [`We received and checked the core for ${coreName} and refunded ${money(core.credit_cents ?? 0)}. Refunds take 5–10 business days to reach your account.`],
+        lines: [
+          order.payment_method === "net30"
+            ? `We received and checked the core for ${coreName} and credited ${money(core.credit_cents ?? 0)} to your account: it comes off your invoice, or your next one if you’ve already paid.`
+            : `We received and checked the core for ${coreName} and refunded ${money(core.credit_cents ?? 0)}. Refunds take 5–10 business days to reach your account.`,
+        ],
       };
     case "core_rejected":
       return core && {
@@ -108,6 +114,20 @@ async function customerMessage(kind: OrderEmailKind, order: OrderWithItems, core
         ],
       };
     case "placed":
+      if (order.status === "invoiced") {
+        return {
+          subject: `Order ${ref} confirmed and charged to your account`,
+          lines: [
+            `Thanks for your order. We’ve charged it to your account on Net-30 terms. Stripe will email the invoice separately${
+              order.invoice_due_date ? `; it’s due ${formatDueDate(order.invoice_due_date)}` : ""
+            }.`,
+            order.fulfillment === "pickup"
+              ? `We’ll email you when it’s ready to collect from ${business.street}, ${business.cityStateZip}.`
+              : "We’ll email you the tracking number when it ships.",
+            ...coreNote,
+          ],
+        };
+      }
       return order.status === "pending_payment"
         ? {
             subject: `Order ${ref} received: waiting for your bank payment`,
@@ -148,7 +168,11 @@ async function customerMessage(kind: OrderEmailKind, order: OrderWithItems, core
     case "cancelled":
       return {
         subject: `Order ${ref} has been cancelled`,
-        lines: [`We’ve cancelled order ${ref} and refunded your payment. Refunds take 5–10 business days to reach your account. Questions? ${business.callUs}.`],
+        lines: [
+          order.payment_method === "net30"
+            ? `We’ve cancelled order ${ref} and its invoice, so there’s nothing to pay. If you’d already paid it, we’ve refunded you. Questions? ${business.callUs}.`
+            : `We’ve cancelled order ${ref} and refunded your payment. Refunds take 5–10 business days to reach your account. Questions? ${business.callUs}.`,
+        ],
       };
     case "refunded":
       return {
@@ -156,6 +180,7 @@ async function customerMessage(kind: OrderEmailKind, order: OrderWithItems, core
         lines: [`We’ve refunded order ${ref}. Refunds take 5–10 business days to reach your account. Questions? ${business.callUs}.`],
       };
     case "paid":
+    case "invoice_paid":
       return null;
   }
 }
@@ -164,7 +189,15 @@ function staffMessage(kind: OrderEmailKind, order: OrderWithItems): Message | nu
   const ref = order.reference;
   const how = order.fulfillment === "pickup" ? "pickup" : "to ship";
   switch (kind) {
+    case "invoice_paid":
+      return { subject: `Invoice paid for Net-30 order ${ref}`, lines: [`${order.name ?? "The customer"} paid the invoice for order ${ref} (${money(order.total_cents)}).`] };
     case "placed":
+      if (order.status === "invoiced") {
+        return {
+          subject: `New Net-30 order ${ref} (${money(order.total_cents)}), ${how}`,
+          lines: [`${order.name ?? "A customer"} charged it to their account; Stripe has emailed the invoice. You can fulfil it now.`],
+        };
+      }
       return order.status === "pending_payment"
         ? { subject: `New order ${ref} (${money(order.total_cents)}), ACH pending`, lines: ["Don’t release it until the bank payment clears; you’ll get another email."] }
         : { subject: `New order ${ref} (${money(order.total_cents)}), ${how}`, lines: [`From ${order.name ?? order.email ?? "a customer"}.`] };

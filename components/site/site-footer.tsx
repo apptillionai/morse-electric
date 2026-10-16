@@ -52,6 +52,9 @@ export async function SiteFooter() {
           <Link href="/contact" className={linkClass}>
             Contact &amp; hours
           </Link>
+          <Link href="/account/request" className={linkClass}>
+            Business accounts
+          </Link>
         </nav>
         <nav aria-label="Policies" className="flex flex-col gap-2.5">
           <strong className="text-on-inverse">Policies</strong>

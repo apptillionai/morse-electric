@@ -86,6 +86,21 @@ export async function applyExpired(session: Stripe.Checkout.Session): Promise<vo
   if (orderId) await rpc("cancel_checkout", orderId);
 }
 
+/** A Net-30 invoice was paid, voided or written off in Stripe. */
+export async function applyInvoiceStatus(invoice: Stripe.Invoice, status: "paid" | "void" | "uncollectible"): Promise<void> {
+  const orderId = invoice.metadata?.order_id;
+  if (!isProductId(orderId) || !invoice.id) return;
+  const { data, error } = await createAdminClient()
+    .from("orders")
+    .update({ invoice_status: status, ...(status === "paid" ? { invoice_paid_at: new Date().toISOString() } : {}) })
+    .eq("id", orderId)
+    .eq("stripe_invoice_id", invoice.id)
+    .neq("invoice_status", status)
+    .select("id");
+  if (error) throw new Error(`Invoice ${invoice.id} on ${orderId}: ${error.message}`);
+  if (status === "paid" && data.length) after(() => sendOrderEmails(orderId, "invoice_paid"));
+}
+
 /** Route a verified webhook event. Unknown types are ignored. */
 export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
   switch (event.type) {
@@ -97,5 +112,11 @@ export async function handleStripeEvent(event: Stripe.Event): Promise<void> {
       return applyAsyncFailed(event.data.object);
     case "checkout.session.expired":
       return applyExpired(event.data.object);
+    case "invoice.paid":
+      return applyInvoiceStatus(event.data.object, "paid");
+    case "invoice.voided":
+      return applyInvoiceStatus(event.data.object, "void");
+    case "invoice.marked_uncollectible":
+      return applyInvoiceStatus(event.data.object, "uncollectible");
   }
 }

@@ -46,17 +46,21 @@ export interface CustomerSignInInfo {
 }
 
 export async function getCustomerDetail(supabase: SupabaseClient, id: string) {
-  const [customer, quotes, service] = await Promise.all([
+  const [customer, quotes, service, balance] = await Promise.all([
     supabase.from("customers").select("*").eq("user_id", id).maybeSingle(),
     supabase.from("quote_requests").select("*").eq("customer_id", id).order("created_at", { ascending: false }).limit(100),
     supabase.from("service_requests").select("*").eq("customer_id", id).order("created_at", { ascending: false }).limit(100),
+    supabase.from("orders").select("total_cents").eq("customer_id", id).eq("invoice_status", "open"),
   ]);
   if (customer.error) throw new Error(`Customer: ${customer.error.message}`);
   if (quotes.error) throw new Error(`Quote requests: ${quotes.error.message}`);
   if (service.error) throw new Error(`Service requests: ${service.error.message}`);
+  if (balance.error) throw new Error(`Open invoices: ${balance.error.message}`);
   if (!customer.data) return null;
   return {
     customer: customer.data as CustomerProfile,
+    /** Net-30 orders with an unpaid invoice. */
+    openBalanceCents: balance.data.reduce((sum, o) => sum + (o.total_cents as number), 0),
     quotes: quotes.data as QuoteRequest[],
     service: service.data as ServiceRequest[],
   };
@@ -141,4 +145,36 @@ export async function removeCustomer(supabase: SupabaseClient, id: string): Prom
   if (data?.tax_cert_path) await supabase.storage.from("customer-documents").remove([data.tax_cert_path]);
   const { error } = await createAdminClient().auth.admin.deleteUser(id);
   if (error) throw new Error(`Removing the login failed: ${error.message}`);
+}
+
+export interface AccountRequest {
+  id: string;
+  reference: string;
+  status: "new" | "invited" | "dismissed";
+  name: string;
+  company: string;
+  email: string;
+  phone: string | null;
+  wants_terms: boolean;
+  details: string | null;
+  customer_id: string | null;
+  created_at: string;
+}
+
+/** "Request a business account" submissions still waiting for staff. */
+export async function listAccountRequests(supabase: SupabaseClient): Promise<AccountRequest[]> {
+  const { data, error } = await supabase
+    .from("account_requests")
+    .select("*")
+    .eq("status", "new")
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) throw new Error(`Account requests: ${error.message}`);
+  return data as AccountRequest[];
+}
+
+export async function getAccountRequest(supabase: SupabaseClient, id: string): Promise<AccountRequest | null> {
+  const { data, error } = await supabase.from("account_requests").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(`Account request: ${error.message}`);
+  return data as AccountRequest | null;
 }

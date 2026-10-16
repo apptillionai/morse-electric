@@ -28,8 +28,8 @@ export default async function CustomerLoginPage(props: PageProps<"/account/login
         <p className="text-fg-muted">Customer accounts aren’t available on this preview.</p>
       )}
       <p className="mt-6 border-t border-edge pt-5 text-sm text-fg-muted">
-        Accounts are set up by our team for regular customers. To get one, call <PhoneLink className="font-semibold" /> or
-        mention it on your next <Link href="/quote">quote request</Link>.
+        Accounts are set up by our team for business customers. <Link href="/account/request">Request an account</Link>, or
+        call <PhoneLink className="font-semibold" />.
       </p>
     </AccountCard>
   );

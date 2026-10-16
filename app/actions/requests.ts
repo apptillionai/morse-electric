@@ -2,6 +2,7 @@
 
 import { after } from "next/server";
 import { getCatalog } from "@/lib/catalog";
+import { ACCOUNT_REQUEST_FIELDS, accountRequestSchema } from "@/lib/customers/schemas";
 import { getSignedInUser } from "@/lib/customers/account";
 import { verifyCaptcha } from "@/lib/requests/captcha";
 import { sendRequestEmails } from "@/lib/requests/email";
@@ -15,6 +16,7 @@ import {
   serviceRequestSchema,
 } from "@/lib/requests/schemas";
 import { insertQuoteRequest, insertServiceRequest, storeRequestPhotos } from "@/lib/requests/store";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { getBusiness } from "@/lib/site-settings";
 
@@ -181,6 +183,61 @@ export async function submitServiceRequest(_prev: RequestFormState, formData: Fo
     return { status: "success", reference };
   } catch (error) {
     console.error("[service]", error instanceof Error ? error.message : error);
+    return { status: "error", message: await unavailable(), values };
+  }
+}
+
+const ACCOUNT_FIELDS = ACCOUNT_REQUEST_FIELDS;
+
+/** "Request a business account": stored for staff to review and invite at /admin/customers. */
+export async function submitAccountRequest(_prev: RequestFormState, formData: FormData): Promise<RequestFormState> {
+  const values = formFields(formData, ACCOUNT_FIELDS);
+  if (isBot(formData)) return { status: "success", reference: "received" };
+
+  const parsed = accountRequestSchema.safeParse(values);
+  if (!parsed.success) {
+    return { status: "error", message: "Check the highlighted fields.", fieldErrors: fieldErrors(parsed.error), values };
+  }
+  const captcha = await verifyCaptcha(formData.get("cf-turnstile-response"), "business");
+  if (!captcha.ok) return { status: "error", message: captcha.error, values };
+  if (!isSupabaseAdminConfigured()) return { status: "error", message: await unavailable(), values };
+
+  const input = parsed.data;
+  try {
+    const { data, error } = await createAdminClient()
+      .from("account_requests")
+      .insert({
+        name: input.name,
+        company: input.company,
+        email: input.email,
+        phone: input.phone,
+        wants_terms: input.wantsTerms,
+        details: input.details,
+      })
+      .select("reference")
+      .single();
+    if (error) throw new Error(error.message);
+
+    after(() =>
+      sendRequestEmails({
+        kind: "account",
+        reference: data.reference,
+        customerName: input.name,
+        customerEmail: input.email,
+        rows: [
+          ["Name", input.name],
+          ["Company", input.company],
+          ["Email", input.email],
+          ["Phone", input.phone],
+          ["Net-30 terms", input.wantsTerms ? "Requested" : null],
+          ["Details", input.details],
+        ],
+        adminPath: "/admin/customers",
+      }),
+    );
+    return { status: "success", reference: data.reference };
+  } catch (error) {
+    console.error("[account request]", error instanceof Error ? error.message : error);
     return { status: "error", message: await unavailable(), values };
   }
 }

@@ -6,6 +6,7 @@ import { getSignedInUser, requireCustomer } from "@/lib/customers/account";
 import { siteOrigin } from "@/lib/customers/origin";
 import { addToCart, isProductId, MAX_LINE_QUANTITY, setCartQuantity } from "@/lib/orders/cart";
 import { abandonCheckout, createCheckout } from "@/lib/orders/checkout";
+import { createNet30Order } from "@/lib/orders/net30";
 import { onlinePurchaseBlock } from "@/lib/orders/pricing";
 import { CHECKOUT_COOKIE, loadBuyableProducts, readCart, storeIsOpen, writeCart } from "@/lib/orders/store";
 import { getOrder } from "@/lib/orders/types";
@@ -58,6 +59,19 @@ export async function checkoutAction(formData: FormData): Promise<void> {
   if (previous && isProductId(previous)) await abandonCheckout(previous);
 
   const user = await getSignedInUser().catch(() => null);
+
+  // Net-30 customers can charge the order to their account instead of paying now.
+  if (formData.get("payment") === "account") {
+    if (!user?.customer) redirect("/account/login?next=/cart");
+    const placed = await createNet30Order({ cart: await readCart(), fulfillment, userId: user.id, customer: user.customer });
+    if (!placed.ok) {
+      if (placed.cleaned) await writeCart(placed.cleaned);
+      redirect(`/cart?error=${placed.error}&fulfillment=${fulfillment}&payment=account`);
+    }
+    await writeCart([]);
+    redirect(`/account/orders/${placed.reference}?placed=1`);
+  }
+
   const customer = user?.customer
     ? {
         id: user.id,

@@ -318,6 +318,13 @@ export async function inviteCustomerAction(_prev: InviteState, formData: FormDat
   const result = await inviteCustomer(supabase, staff.id, parsed.data);
   if (!result.ok) return { error: result.error, fieldErrors: result.field ? { [result.field]: result.error } : undefined, values };
 
+  // Invited from a "Request a business account" submission: mark it done.
+  const requestId = formData.get("request_id");
+  if (typeof requestId === "string" && /^[0-9a-f-]{36}$/i.test(requestId)) {
+    const { error } = await supabase.from("account_requests").update({ status: "invited", customer_id: result.id }).eq("id", requestId);
+    if (error) console.error("[invite] marking account request invited:", error.message);
+  }
+
   const url = accountLinkUrl(await siteOrigin(), result.tokenHash, "invite");
   const emailed = await sendAccountLinkEmail(parsed.data.email, parsed.data.name, url, "invite");
   revalidatePath("/admin", "layout");
@@ -352,6 +359,39 @@ export async function setTaxExemptAction(customerId: string, formData: FormData)
   if (error) throw new Error(`Saving tax status failed: ${error.message}`);
   revalidatePath(`/admin/customers/${customerId}`);
   revalidatePath("/account", "layout");
+}
+
+export async function dismissAccountRequestAction(requestId: string) {
+  await requireStaff();
+  const supabase = await createSessionClient();
+  const { error } = await supabase.from("account_requests").update({ status: "dismissed" }).eq("id", requestId);
+  if (error) throw new Error(`Dismissing the request failed: ${error.message}`);
+  revalidatePath("/admin/customers");
+}
+
+export interface TermsState {
+  error?: string;
+  saved?: boolean;
+}
+
+/** Put a customer on Net-30 terms (or back to paying up front) with a credit limit. */
+export async function setTermsAction(customerId: string, _prev: TermsState, formData: FormData): Promise<TermsState> {
+  await requireStaff();
+  const terms = formData.get("terms") === "net30" ? "net30" : "prepay";
+  const raw = String(formData.get("credit_limit") ?? "").trim().replace(/^\$/, "").replace(/,/g, "");
+  const dollars = raw === "" ? 0 : Number(raw);
+  if (!Number.isFinite(dollars) || dollars < 0 || dollars > 1_000_000) return { error: "Enter a credit limit from $0 to $1,000,000." };
+  if (terms === "net30" && dollars <= 0) return { error: "Set a credit limit above $0 for Net-30 terms." };
+  const supabase = await createSessionClient();
+  const { error } = await supabase
+    .from("customers")
+    .update({ terms, credit_limit_cents: Math.round(dollars * 100) })
+    .eq("user_id", customerId);
+  if (error) return { error: `Couldn’t save terms: ${error.message}` };
+  revalidatePath(`/admin/customers/${customerId}`);
+  revalidatePath("/account", "layout");
+  revalidatePath("/cart");
+  return { saved: true };
 }
 
 export async function removeCustomerAction(customerId: string) {

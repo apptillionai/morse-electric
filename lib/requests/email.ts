@@ -7,7 +7,7 @@ import { getBusiness } from "@/lib/site-settings";
 export type EmailRow = [label: string, value: string | null];
 
 export interface RequestEmail {
-  kind: "quote" | "service";
+  kind: "quote" | "service" | "account";
   reference: string;
   customerName: string;
   customerEmail: string;
@@ -16,7 +16,7 @@ export interface RequestEmail {
   adminPath: string;
 }
 
-const KIND_LABEL = { quote: "Quote request", service: "Service request" } as const;
+const KIND_LABEL = { quote: "Quote request", service: "Service request", account: "Business account request" } as const;
 
 export function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[c] ?? c);

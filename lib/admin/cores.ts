@@ -17,14 +17,14 @@ export const CORE_FILTER_LABELS: Record<CoreFilter, string> = {
 };
 
 export type CoreRow = CoreReturn & {
-  order: Pick<Order, "id" | "reference" | "name" | "email" | "status" | "stripe_payment_intent_id"> | null;
+  order: Pick<Order, "id" | "reference" | "name" | "email" | "status" | "stripe_payment_intent_id" | "stripe_invoice_id"> | null;
   item: Pick<OrderItem, "name" | "sku"> | null;
 };
 
 export async function listCores(supabase: SupabaseClient, filter: string): Promise<CoreRow[]> {
   let q = supabase
     .from("core_returns")
-    .select("*, order:orders(id, reference, name, email, status, stripe_payment_intent_id), item:order_items(name, sku)")
+    .select("*, order:orders(id, reference, name, email, status, stripe_payment_intent_id, stripe_invoice_id), item:order_items(name, sku)")
     .order("due_date", { ascending: true })
     .limit(300);
   if (filter === "open" || !(CORE_FILTERS as readonly string[]).includes(filter)) q = q.in("status", ["awaiting", "received"]);
@@ -38,7 +38,7 @@ export async function listCores(supabase: SupabaseClient, filter: string): Promi
 export async function getCore(supabase: SupabaseClient, id: string): Promise<CoreRow | null> {
   const { data, error } = await supabase
     .from("core_returns")
-    .select("*, order:orders(id, reference, name, email, status, stripe_payment_intent_id), item:order_items(name, sku)")
+    .select("*, order:orders(id, reference, name, email, status, stripe_payment_intent_id, stripe_invoice_id), item:order_items(name, sku)")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`Core return: ${error.message}`);

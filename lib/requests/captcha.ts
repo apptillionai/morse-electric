@@ -5,7 +5,7 @@ import { getBusiness } from "@/lib/site-settings";
 
 const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
-export type CaptchaAction = "quote" | "service" | "account";
+export type CaptchaAction = "quote" | "service" | "account" | "business";
 type CaptchaResult = { ok: true } | { ok: false; error: string };
 
 function allowedHostnames(): Set<string> {

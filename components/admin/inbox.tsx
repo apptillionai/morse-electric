@@ -12,6 +12,7 @@ const TONE: Record<string, string> = {
   lost: "border-edge-strong text-fg-muted",
   spam: "border-edge-strong text-fg-muted",
   paid: "border-warn text-warn",
+  invoiced: "border-warn text-warn",
   processing: "border-warn text-warn",
   shipped: "border-ok text-ok",
   completed: "border-ok text-ok",

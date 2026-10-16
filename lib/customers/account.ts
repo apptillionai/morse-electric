@@ -30,6 +30,9 @@ export interface CustomerProfile {
   tax_cert_uploaded_at: string | null;
   /** Set by checkout; never shown to the customer. */
   stripe_customer_id: string | null;
+  /** Set by staff: "net30" customers can charge orders to their account. */
+  terms: "prepay" | "net30";
+  credit_limit_cents: number;
   created_at: string;
 }
 

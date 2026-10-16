@@ -96,3 +96,14 @@ describe("request emails", () => {
     expect(text).toBe("Name: <script>");
   });
 });
+
+describe("accountRequestSchema", () => {
+  it("needs a name, company and email, and reads the Net-30 box", async () => {
+    const { accountRequestSchema } = await import("@/lib/customers/schemas");
+    const ok = accountRequestSchema.safeParse({ name: " Cara ", company: "Cara Farms", email: "Cara@Example.com", phone: "", wantsTerms: "on", details: "" });
+    expect(ok.success && ok.data).toEqual({ name: "Cara", company: "Cara Farms", email: "cara@example.com", phone: null, wantsTerms: true, details: null });
+    const bad = accountRequestSchema.safeParse({ name: "", company: "", email: "x", phone: "", wantsTerms: "", details: "" });
+    expect(bad.success).toBe(false);
+    if (!bad.success) expect(Object.keys(fieldErrors(bad.error)).sort()).toEqual(["company", "email", "name"]);
+  });
+});
