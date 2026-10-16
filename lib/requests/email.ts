@@ -7,14 +7,16 @@ import { getBusiness } from "@/lib/site-settings";
 export type EmailRow = [label: string, value: string | null];
 
 export interface RequestEmail {
-  kind: "quote" | "service";
+  kind: "quote" | "service" | "account";
   reference: string;
   customerName: string;
   customerEmail: string;
   rows: EmailRow[];
+  /** The request in the staff admin, linked from the staff email only. */
+  adminPath: string;
 }
 
-const KIND_LABEL = { quote: "Quote request", service: "Service request" } as const;
+const KIND_LABEL = { quote: "Quote request", service: "Service request", account: "Business account request" } as const;
 
 export function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[c] ?? c);
@@ -50,6 +52,7 @@ export async function sendRequestEmails(email: RequestEmail): Promise<void> {
   const { callUs } = await getBusiness();
   const label = KIND_LABEL[email.kind];
   const body = renderRows(email.rows);
+  const adminUrl = `${SITE.url}${email.adminPath}`;
 
   const results = await Promise.allSettled([
     resend.emails.send({
@@ -57,8 +60,9 @@ export async function sendRequestEmails(email: RequestEmail): Promise<void> {
       to: staff.split(",").map((s) => s.trim()),
       replyTo: email.customerEmail,
       subject: `${label} ${email.reference} from ${email.customerName}`,
-      html: `<p style="font:14px sans-serif"><strong>${label} ${escapeHtml(email.reference)}</strong></p>${body.html}`,
-      text: `${label} ${email.reference}\n\n${body.text}`,
+      html: `<p style="font:14px sans-serif"><strong>${label} ${escapeHtml(email.reference)}</strong></p>${body.html}
+<p style="font:14px sans-serif"><a href="${escapeHtml(adminUrl)}">Open in the admin</a></p>`,
+      text: `${label} ${email.reference}\n\n${body.text}\n\nOpen in the admin: ${adminUrl}`,
     }),
     resend.emails.send({
       from,

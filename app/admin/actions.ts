@@ -19,6 +19,7 @@ import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { SITE_SETTINGS_TAG } from "@/lib/site-settings";
 import { isDefaultTheme } from "@/lib/theme";
 import { BUSINESS_FIELDS, businessSchema } from "@/lib/business";
+import { parseRateRows, RATE_FIELDS } from "@/lib/orders/settings";
 import { createSessionClient } from "@/lib/supabase/server";
 
 // Every action re-checks staff access: server actions are reachable by POST
@@ -317,6 +318,13 @@ export async function inviteCustomerAction(_prev: InviteState, formData: FormDat
   const result = await inviteCustomer(supabase, staff.id, parsed.data);
   if (!result.ok) return { error: result.error, fieldErrors: result.field ? { [result.field]: result.error } : undefined, values };
 
+  // Invited from a "Request a business account" submission: mark it done.
+  const requestId = formData.get("request_id");
+  if (typeof requestId === "string" && /^[0-9a-f-]{36}$/i.test(requestId)) {
+    const { error } = await supabase.from("account_requests").update({ status: "invited", customer_id: result.id }).eq("id", requestId);
+    if (error) console.error("[invite] marking account request invited:", error.message);
+  }
+
   const url = accountLinkUrl(await siteOrigin(), result.tokenHash, "invite");
   const emailed = await sendAccountLinkEmail(parsed.data.email, parsed.data.name, url, "invite");
   revalidatePath("/admin", "layout");
@@ -353,6 +361,39 @@ export async function setTaxExemptAction(customerId: string, formData: FormData)
   revalidatePath("/account", "layout");
 }
 
+export async function dismissAccountRequestAction(requestId: string) {
+  await requireStaff();
+  const supabase = await createSessionClient();
+  const { error } = await supabase.from("account_requests").update({ status: "dismissed" }).eq("id", requestId);
+  if (error) throw new Error(`Dismissing the request failed: ${error.message}`);
+  revalidatePath("/admin/customers");
+}
+
+export interface TermsState {
+  error?: string;
+  saved?: boolean;
+}
+
+/** Put a customer on Net-30 terms (or back to paying up front) with a credit limit. */
+export async function setTermsAction(customerId: string, _prev: TermsState, formData: FormData): Promise<TermsState> {
+  await requireStaff();
+  const terms = formData.get("terms") === "net30" ? "net30" : "prepay";
+  const raw = String(formData.get("credit_limit") ?? "").trim().replace(/^\$/, "").replace(/,/g, "");
+  const dollars = raw === "" ? 0 : Number(raw);
+  if (!Number.isFinite(dollars) || dollars < 0 || dollars > 1_000_000) return { error: "Enter a credit limit from $0 to $1,000,000." };
+  if (terms === "net30" && dollars <= 0) return { error: "Set a credit limit above $0 for Net-30 terms." };
+  const supabase = await createSessionClient();
+  const { error } = await supabase
+    .from("customers")
+    .update({ terms, credit_limit_cents: Math.round(dollars * 100) })
+    .eq("user_id", customerId);
+  if (error) return { error: `Couldn’t save terms: ${error.message}` };
+  revalidatePath(`/admin/customers/${customerId}`);
+  revalidatePath("/account", "layout");
+  revalidatePath("/cart");
+  return { saved: true };
+}
+
 export async function removeCustomerAction(customerId: string) {
   await requireStaff();
   if (!isSupabaseAdminConfigured()) throw new Error(NO_SECRET_KEY);
@@ -374,15 +415,35 @@ export interface SettingsState {
 
 export async function saveSettingsAction(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
   const staff = await requireStaff();
-  const values = formFields(formData, ["default_theme", ...BUSINESS_FIELDS] as const);
+  const values = formFields(formData, ["default_theme", "store_enabled", "core_return_days", ...BUSINESS_FIELDS, ...RATE_FIELDS] as const);
   const theme = values.default_theme;
   if (!isDefaultTheme(theme)) return { error: "Choose a default theme.", values };
   const business = businessSchema.safeParse(values);
-  if (!business.success) return { error: "Check the highlighted fields.", fieldErrors: fieldErrors(business.error), values };
+  const rates = parseRateRows(values);
+  const returnDays = Number(values.core_return_days || "30");
+  const daysError = Number.isInteger(returnDays) && returnDays >= 1 && returnDays <= 365 ? null : "Enter a number of days from 1 to 365.";
+  if (!business.success || !rates.ok || daysError) {
+    return {
+      error: "Check the highlighted fields.",
+      fieldErrors: {
+        ...(business.success ? {} : fieldErrors(business.error)),
+        ...(rates.ok ? {} : rates.errors),
+        ...(daysError ? { core_return_days: daysError } : {}),
+      },
+      values,
+    };
+  }
   const supabase = await createSessionClient();
   const { error } = await supabase
     .from("site_settings")
-    .update({ default_theme: theme, ...business.data, updated_by: staff.id })
+    .update({
+      default_theme: theme,
+      ...business.data,
+      store_enabled: values.store_enabled === "on",
+      shipping_rates: rates.rates,
+      core_return_days: returnDays,
+      updated_by: staff.id,
+    })
     .eq("id", 1);
   if (error) return { error: `Couldn’t save: ${error.message}` };
   // Every page reads these through the root layout, header and footer.

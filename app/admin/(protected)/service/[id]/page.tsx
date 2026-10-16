@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateServiceAction } from "@/app/admin/actions";
 import { PageHeader } from "@/components/admin/admin-shell";
-import { Detail, formatDate, StatusBadge } from "@/components/admin/inbox";
+import { Detail, formatDate, RequestPhotos, StatusBadge } from "@/components/admin/inbox";
 import { TriageForm } from "@/components/admin/triage-form";
 import { getServiceRequest, SERVICE_STATUSES, STATUS_LABELS } from "@/lib/admin/requests";
 import { EQUIPMENT_TYPES } from "@/lib/requests/schemas";
@@ -46,6 +46,7 @@ export default async function ServiceJobPage(props: PageProps<"/admin/service/[i
           <Detail label="Size / rating">{j.size}</Detail>
           <Detail label="Model / serial">{j.model_serial && <span className="font-mono">{j.model_serial}</span>}</Detail>
           <Detail label="Symptoms"><span className="whitespace-pre-line">{j.symptoms}</span></Detail>
+          <Detail label="Photos">{j.photos.length > 0 && <RequestPhotos photos={j.photos} />}</Detail>
           <Detail label="Pickup wanted">{yesNo(j.wants_pickup)}</Detail>
           <Detail label="Rush">{yesNo(j.is_rush)}</Detail>
           <Detail label="Replacement quote">{yesNo(j.wants_replacement_quote)}</Detail>

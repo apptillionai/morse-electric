@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SEED_CATEGORIES } from "@/lib/catalog/seed";
+import { POLICIES } from "@/lib/policies";
 import { SITE } from "@/lib/site";
 import { getBusiness } from "@/lib/site-settings";
 import { PhoneLink } from "./site-header";
@@ -51,6 +52,17 @@ export async function SiteFooter() {
           <Link href="/contact" className={linkClass}>
             Contact &amp; hours
           </Link>
+          <Link href="/account/request" className={linkClass}>
+            Business accounts
+          </Link>
+        </nav>
+        <nav aria-label="Policies" className="flex flex-col gap-2.5">
+          <strong className="text-on-inverse">Policies</strong>
+          {POLICIES.map((p) => (
+            <Link key={p.slug} href={`/policies/${p.slug}`} className={linkClass}>
+              {p.title}
+            </Link>
+          ))}
         </nav>
       </div>
       <div className="mx-auto flex max-w-7xl flex-wrap justify-between gap-2 border-t border-inverse-edge px-6 py-5 text-[13px]">

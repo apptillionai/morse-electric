@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ORDER_STATUS_LABELS } from "@/lib/orders/types";
 import type { EquipmentType } from "@/lib/requests/schemas";
 
 export const QUOTE_STATUSES = ["new", "quoted", "won", "lost", "spam"] as const;
@@ -29,6 +30,7 @@ export const STATUS_LABELS: Record<string, string> = {
   ready: "Ready",
   delivered: "Delivered",
   closed: "Closed",
+  ...ORDER_STATUS_LABELS,
 };
 
 export interface QuoteRequest {
@@ -69,6 +71,39 @@ export interface ServiceRequest {
   updated_at: string;
 }
 
+export interface RequestPhoto {
+  url: string;
+  name: string;
+  /** Browsers other than Safari can't show HEIC, so those are offered as downloads. */
+  previewable: boolean;
+}
+
+interface PhotoRow {
+  storage_path: string;
+  content_type: string;
+  file_name: string | null;
+  sort_order: number;
+}
+
+/** Short-lived links to a request's photos (the bucket is private). */
+async function photoLinks(supabase: SupabaseClient, rows: PhotoRow[] | null): Promise<RequestPhoto[]> {
+  if (!rows?.length) return [];
+  const sorted = [...rows].sort((a, b) => a.sort_order - b.sort_order);
+  const { data, error } = await supabase.storage.from("request-photos").createSignedUrls(
+    sorted.map((r) => r.storage_path),
+    3600,
+  );
+  if (error) throw new Error(`Request photos: ${error.message}`);
+  return sorted.flatMap((row, i) => {
+    const url = data[i]?.signedUrl;
+    return url
+      ? [{ url, name: row.file_name ?? `Photo ${i + 1}`, previewable: row.content_type !== "image/heic" }]
+      : [];
+  });
+}
+
+const PHOTO_COLUMNS = "photos:request_photos(storage_path, content_type, file_name, sort_order)";
+
 export type InboxFilter = "open" | "all" | string;
 
 export async function listQuotes(supabase: SupabaseClient, filter: InboxFilter) {
@@ -81,19 +116,19 @@ export async function listQuotes(supabase: SupabaseClient, filter: InboxFilter) 
 }
 
 /** Staff notes live in their own staff-only table; embedded one-to-one, so an object or null. */
-type WithNotes<T> = T & { notes: { notes: string } | { notes: string }[] | null };
+type WithNotes<T> = T & { notes: { notes: string } | { notes: string }[] | null; photos: PhotoRow[] | null };
 const notesText = (n: WithNotes<object>["notes"]) => (Array.isArray(n) ? n[0]?.notes : n?.notes) ?? "";
 
 export async function getQuote(supabase: SupabaseClient, id: string) {
   const { data, error } = await supabase
     .from("quote_requests")
-    .select("*, notes:quote_request_notes(notes)")
+    .select(`*, notes:quote_request_notes(notes), ${PHOTO_COLUMNS}`)
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`Quote request: ${error.message}`);
   if (!data) return null;
-  const { notes, ...quote } = data as WithNotes<QuoteRequest>;
-  return { ...quote, staff_notes: notesText(notes) };
+  const { notes, photos, ...quote } = data as WithNotes<QuoteRequest>;
+  return { ...quote, staff_notes: notesText(notes), photos: await photoLinks(supabase, photos) };
 }
 
 export async function listServiceRequests(supabase: SupabaseClient, filter: InboxFilter) {
@@ -108,13 +143,13 @@ export async function listServiceRequests(supabase: SupabaseClient, filter: Inbo
 export async function getServiceRequest(supabase: SupabaseClient, id: string) {
   const { data, error } = await supabase
     .from("service_requests")
-    .select("*, notes:service_request_notes(notes)")
+    .select(`*, notes:service_request_notes(notes), ${PHOTO_COLUMNS}`)
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`Service request: ${error.message}`);
   if (!data) return null;
-  const { notes, ...job } = data as WithNotes<ServiceRequest>;
-  return { ...job, staff_notes: notesText(notes) };
+  const { notes, photos, ...job } = data as WithNotes<ServiceRequest>;
+  return { ...job, staff_notes: notesText(notes), photos: await photoLinks(supabase, photos) };
 }
 
 export async function dashboardCounts(supabase: SupabaseClient) {

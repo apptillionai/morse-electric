@@ -5,9 +5,11 @@ import { useActionState, useState } from "react";
 import {
   inviteCustomerAction,
   newSignInLinkAction,
+  setTermsAction,
   type AccountLinkResult,
   type InviteState,
   type LinkState,
+  type TermsState,
 } from "@/app/admin/actions";
 import { FormMessage, TextField } from "@/components/forms/fields";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -56,15 +58,25 @@ export function AccountLinkPanel({ link, intro }: { link: AccountLinkResult; int
   );
 }
 
-export function InviteCustomerForm() {
+type InviteDefaults = Partial<Record<"email" | "name" | "company" | "phone", string>>;
+
+/** `initial` and `requestId` prefill the form from a "Request a business account" submission. */
+export function InviteCustomerForm({ initial, requestId }: { initial?: InviteDefaults; requestId?: string }) {
   // A new key starts a fresh form (and fresh action state) for the next invite.
   const [round, setRound] = useState(0);
-  return <InviteForm key={round} onAgain={() => setRound((r) => r + 1)} />;
+  return (
+    <InviteForm
+      key={round}
+      initial={round === 0 ? initial : undefined}
+      requestId={round === 0 ? requestId : undefined}
+      onAgain={() => setRound((r) => r + 1)}
+    />
+  );
 }
 
-function InviteForm({ onAgain }: { onAgain: () => void }) {
+function InviteForm({ onAgain, initial, requestId }: { onAgain: () => void; initial?: InviteDefaults; requestId?: string }) {
   const [state, action, pending] = useActionState(inviteCustomerAction, {} as InviteState);
-  const v = state.values ?? {};
+  const v = state.values ?? initial ?? {};
   const e = state.fieldErrors ?? {};
 
   if (state.done) {
@@ -87,6 +99,7 @@ function InviteForm({ onAgain }: { onAgain: () => void }) {
 
   return (
     <form action={action} className="flex max-w-2xl flex-col gap-5 rounded-md border border-edge bg-surface p-6" noValidate>
+      {requestId && <input type="hidden" name="request_id" value={requestId} />}
       <FormMessage message={state.error} />
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField label="Email" name="email" type="email" required defaultValue={v.email} error={e.email} hint="They’ll sign in with this." />
@@ -114,6 +127,38 @@ export function NewSignInLinkForm({ customerId }: { customerId: string }) {
         </Button>
       </div>
       <p className="text-[13px] text-fg-muted">For a customer who lost the invite or forgot their password. It lets them choose a new password.</p>
+    </form>
+  );
+}
+
+/** Payment terms and credit limit for one customer. */
+export function TermsForm({ customerId, terms, limitCents }: { customerId: string; terms: "prepay" | "net30"; limitCents: number }) {
+  const [state, action, pending] = useActionState(setTermsAction.bind(null, customerId), {} as TermsState);
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      <FormMessage message={state.error} />
+      <fieldset className="flex flex-col gap-1">
+        <legend className="sr-only">Terms</legend>
+        <label className="flex min-h-11 cursor-pointer items-center gap-2.5">
+          <input type="radio" name="terms" value="prepay" defaultChecked={terms === "prepay"} className="size-[18px] accent-fg" />
+          Pays at checkout (card or bank transfer)
+        </label>
+        <label className="flex min-h-11 cursor-pointer items-center gap-2.5">
+          <input type="radio" name="terms" value="net30" defaultChecked={terms === "net30"} className="size-[18px] accent-fg" />
+          Net-30: can charge orders to their account
+        </label>
+      </fieldset>
+      <TextField
+        label="Credit limit ($)"
+        name="credit_limit"
+        inputMode="decimal"
+        defaultValue={limitCents ? (limitCents / 100).toFixed(2) : ""}
+        hint="Orders on account stop once unpaid invoices would go over this."
+      />
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" variant="dark" size="sm" disabled={pending}>{pending ? "Saving…" : "Save terms"}</Button>
+        {state.saved && !pending && <span role="status" className="text-sm font-medium text-ok">Saved.</span>}
+      </div>
     </form>
   );
 }

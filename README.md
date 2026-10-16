@@ -16,21 +16,55 @@ Built with Next.js 16 (App Router), Tailwind CSS 4, Supabase (Postgres + Storage
 | `/quote` | Quote request (prefilled from a product with `?sku=`) |
 | `/service` | Repair services, service request form, field service |
 | `/contact` | Phone, address, hours |
+| `/policies/[slug]` | Terms of sale, returns, shipping & pickup, warranty and privacy. Wording is a draft with `[XX]` values to confirm: each page shows a draft notice and stays out of search results until its `draft` flag in `lib/policies.ts` is turned off. |
 
-Quote and service requests are stored in Supabase with a reference number (`Q-1001`, `SR-1001`). Staff get an email notification and customers get a confirmation.
+Quote and service requests are stored in Supabase with a reference number (`Q-1001`, `SR-1001`). Staff get an email notification and customers get a confirmation. Both forms take up to 4 photos (nameplate, damage, installation); the browser shrinks large photos first, and staff see them on the request in the admin.
 
 Every page has a **Light / Mid / Dark** theme switch in the top bar. The choice is saved in the browser. First-time visitors get the site default, which staff set at **/admin/settings** (Light out of the box; Mid, Dark or "match the device" are the other options). Colours are semantic tokens in `app/globals.css`; `__tests__/theme-contrast.test.ts` fails the build if any text or control pair drops below WCAG AA contrast in any theme.
+
+## Online store (Phase 2)
+
+Customers can buy in-stock items online and pay by card (including Apple Pay and Google Pay) or by ACH bank transfer through Stripe Checkout. The store stays off until staff switch it on at **/admin/settings**, and checkout also needs the Stripe keys.
+
+| Route | What it does |
+| --- | --- |
+| `/cart` | The cart: change quantities, choose shipping or free pickup, check out. Works without JavaScript. |
+| `/checkout/success` | The order confirmation Stripe returns customers to |
+| `/account/orders` | A signed-in customer's orders, with status, tracking and "Order again" |
+| `/admin/orders` | Orders to fulfil: mark as being prepared, shipped (with tracking) or ready for pickup, then completed; cancel or refund in full; staff notes |
+| `/account/request` | "Request a business account": a public form staff review at /admin/customers, with an option to apply for Net-30 terms |
+| `/admin/cores` | Core returns: what customers owe back, overdue ones first; mark received, then accept and refund the core charge, or reject with a reason; extend a due date |
+
+**What can be bought online:** active products with a price, in stock, that ship by parcel or are pickup-only. Freight (LTL) items stay "Request a quote", and so do exchange units until they have a core charge set.
+
+**Core charges:** a product's core charge is added at checkout as its own refundable line. Placing the order opens a core return, due back after the return window set at /admin/settings (30 days by default). The customer sees what they owe, the due date and return instructions in their emails and account. Staff mark the core received at /admin/cores, then "Accept & refund", which refunds that amount through Stripe, or reject it with a reason the customer sees. A daily job (`/api/cron/core-reminders`, scheduled in `vercel.json`, needs `CRON_SECRET`) emails a reminder a week before the due date and a notice once it's overdue. Cancelling or refunding a whole order closes its open cores.
+
+**Shipping:** staff set parcel rates by order weight at /admin/settings (e.g. up to 10 lb $15, up to 50 lb $45). Pickup is always free. Orders that are heavier than the top band, or that include an item with no weight on file, can only be picked up.
+
+**Stock:** starting checkout reserves the stock for 31 minutes (`inventory.qty_reserved`, so the item can show as out of stock to others). Payment takes it off the shelf, and an abandoned checkout releases it. ACH orders hold their stock while the bank payment clears; a failed payment puts it back. All of this happens in database functions (`supabase/migrations/20261016170815_orders.sql`), so a repeated Stripe event never moves stock twice.
+
+**Net-30 terms:** staff put a customer on Net-30 with a credit limit on the customer's admin page. That customer then sees "Charge to my account" at checkout, with their available credit. The order skips Stripe Checkout: the database checks the limit (unpaid invoices plus this order, with the account locked), places the order as "Charged to account" and takes the stock. Then a Stripe invoice is created, finalized and emailed, due in 30 days, with Stripe Tax worked out from the address on the customer's profile. The order is ready to fulfil straight away. Stripe's `invoice.paid`, `invoice.voided` and `invoice.marked_uncollectible` events keep the invoice status on the order up to date. Cancelling an order voids its invoice (or credits and refunds it if paid), and a returned core is taken off the invoice, or credited to the next one. New customers can ask for an account (and terms) at /account/request; staff see the requests on /admin/customers and invite with one click.
+
+**Setting up Stripe:**
+1. Set `STRIPE_SECRET_KEY` in Vercel. Use a test key (`sk_test_…`) for previews and the live key for production.
+2. In Stripe → Developers → Webhooks, add an endpoint at `https://morseelectricmotor.com/api/stripe/webhook` with these events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `invoice.paid`, `invoice.voided`, `invoice.marked_uncollectible`. Put its signing secret in `STRIPE_WEBHOOK_SECRET`.
+3. Turn on Stripe Tax (Settings → Tax): set the shop's origin address and add a Massachusetts registration, plus any other state where Morse collects tax. Checkout calculates tax automatically, and approved tax-exempt customers are marked exempt in Stripe when they check out signed in.
+4. In Settings → Payment methods, turn on cards, Apple Pay / Google Pay and ACH Direct Debit (US bank account).
+5. Set `CRON_SECRET` in Vercel (any long random string) for the core-return reminders.
+6. At /admin/settings, enter the shipping bands, check the core return window and tick **Take orders online**.
+
+Everything still to do before launch, for you and for Morse, is in [`docs/launch-checklist.md`](docs/launch-checklist.md).
 
 ## Staff admin (`/admin`)
 
 | Route | What it does |
 | --- | --- |
-| `/admin` | Dashboard: new quotes, open and rush service jobs, out-of-stock and draft products |
+| `/admin` | Dashboard: orders to fulfil, overdue cores, new quotes, open and rush service jobs, out-of-stock and draft products |
 | `/admin/products` | Search and filter the catalog; add, edit, archive or delete products; photos; stock |
 | `/admin/import` | CSV import with a preview (new, updated, unchanged, problems by row) before anything is saved; template download |
 | `/admin/products/export` | The whole catalog as CSV, in the same format the importer reads |
 | `/admin/quotes`, `/admin/service` | Request inboxes with status and private staff notes |
-| `/admin/customers` | Invite customers, approve tax exemption, make new sign-in links, remove accounts |
+| `/admin/customers` | Business account requests to invite or dismiss; invite customers, approve tax exemption, set Net-30 terms and credit limits, make new sign-in links, remove accounts |
 
 **Adding a staff member:** create the user in the Supabase dashboard (Authentication → Users → Add user), then run in the SQL editor:
 
@@ -54,7 +88,7 @@ Sign-in links use Supabase's **Email OTP expiration** (Authentication → Provid
 
 **CSV import rules:** rows match existing products by SKU (a new SKU creates a product); only the columns present in the file change; new products need a name and category. Common header names (`Part #`, `Horsepower`, `Qty on hand`, …) are recognised, and values like `$1,299`, `7½`, `TEFC` and `3 phase` are understood.
 
-Planned next: photo uploads on the public forms, then Phase 2 (cart, Stripe checkout, accounts, core charges, Net-30).
+Phase 2 is in progress: the online store (step 1), core charges (step 2) and Net-30 terms (step 3) are built; next come payable quotes and online repair approval. See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
 
 ## Getting started
 
