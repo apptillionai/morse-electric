@@ -3,6 +3,7 @@ import "server-only";
 import { createPublicClient } from "@/lib/supabase/public";
 import { storagePublicUrl } from "@/lib/supabase/env";
 import { parseCredit } from "./photo-credit";
+import { parsePriceBreaks } from "@/lib/orders/pricing";
 import { PAGE_SIZE, partKey, RPM_BANDS, searchTerms, type CatalogFilters, type Sort } from "./filters";
 import type { CatalogSource, ProductPage } from "./source";
 import type {
@@ -48,6 +49,7 @@ interface DetailRow extends SummaryRow {
   ship_class: ShipClass;
   weight_lb: number | string | null;
   specs: unknown;
+  price_breaks: unknown;
   documents: { label: string; storage_path: string; sort_order: number }[] | null;
   photos: { storage_path: string; alt: string; sort_order: number; credit: unknown }[] | null;
 }
@@ -184,7 +186,7 @@ export const supabaseCatalog: CatalogSource = {
     const { data, error } = await supabase
       .from("products")
       .select(
-        `${summarySelect({ innerBrand: false })}, family_key, description, ship_class, weight_lb, specs, documents:product_documents(label, storage_path, sort_order), photos:product_images(storage_path, alt, sort_order, credit)`,
+        `${summarySelect({ innerBrand: false })}, family_key, description, ship_class, weight_lb, specs, price_breaks, documents:product_documents(label, storage_path, sort_order), photos:product_images(storage_path, alt, sort_order, credit)`,
       )
       .eq("status", "active")
       .eq("slug", slug)
@@ -217,6 +219,7 @@ export const supabaseCatalog: CatalogSource = {
       shipClass: row.ship_class,
       weightLb: num(row.weight_lb),
       specs: toSpecs(row.specs),
+      priceBreaks: parsePriceBreaks(row.price_breaks),
       images: [...(row.photos ?? [])]
         .sort((a, b) => a.sort_order - b.sort_order)
         .map((i) => ({ url: storagePublicUrl("product-images", i.storage_path), alt: i.alt, credit: parseCredit(i.credit) })),

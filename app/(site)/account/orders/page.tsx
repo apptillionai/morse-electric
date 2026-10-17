@@ -4,6 +4,7 @@ import { AccountShell } from "@/components/account/account-shell";
 import { ButtonLink } from "@/components/ui/button";
 import { requireCustomer } from "@/lib/customers/account";
 import { coreReturnInstructions } from "@/lib/orders/email";
+import { formatPercent, tierOf } from "@/lib/orders/pricing";
 import { formatDueDate, ORDER_STATUS_LABELS, type CoreReturn, type Order } from "@/lib/orders/types";
 import { getBusiness } from "@/lib/site-settings";
 import { createSessionClient } from "@/lib/supabase/server";
@@ -38,6 +39,10 @@ export default async function AccountOrdersPage() {
     customer.terms === "net30"
       ? (((await (await createSessionClient()).rpc("my_open_balance_cents")).data as number | null) ?? 0)
       : 0;
+  // RLS lets a customer read only their own tier.
+  const pricing = customer.price_tier_id
+    ? tierOf((await (await createSessionClient()).from("price_tiers").select("name, discount_percent").eq("id", customer.price_tier_id).maybeSingle()).data)
+    : null;
   const owed = orders.flatMap((o) =>
     o.cores
       .filter((c) => c.status === "awaiting")
@@ -46,6 +51,12 @@ export default async function AccountOrdersPage() {
 
   return (
     <AccountShell current="/account/orders" name={customer.name} company={customer.company}>
+      {pricing && (
+        <p className="rounded-md border border-edge bg-surface p-4 text-sm">
+          <strong>{pricing.tierName} pricing.</strong> You get {formatPercent(pricing.discountPercent)} off list prices in the shop
+          when you’re signed in, or the quantity price when that’s lower. Your price shows on each product page and in your cart.
+        </p>
+      )}
       {customer.terms === "net30" && (
         <p className="rounded-md border border-edge bg-surface p-4 text-sm">
           <strong>Net-30 account.</strong> {formatPrice(Math.max(0, customer.credit_limit_cents - openBalance))} of{" "}

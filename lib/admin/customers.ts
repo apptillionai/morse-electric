@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CustomerProfile } from "@/lib/customers/account";
 import type { InviteInput } from "@/lib/customers/schemas";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { PriceTier } from "./price-tiers";
 import type { QuoteRequest, ServiceRequest } from "./requests";
 
 /**
@@ -177,4 +178,16 @@ export async function getAccountRequest(supabase: SupabaseClient, id: string): P
   const { data, error } = await supabase.from("account_requests").select("*").eq("id", id).maybeSingle();
   if (error) throw new Error(`Account request: ${error.message}`);
   return data as AccountRequest | null;
+}
+
+/** Every price tier, with how many customers are on each. */
+export async function listPriceTiers(supabase: SupabaseClient): Promise<PriceTier[]> {
+  const { data, error } = await supabase.from("price_tiers").select("id, name, discount_percent, customers(count)").order("discount_percent");
+  if (error) throw new Error(`Price tiers: ${error.message}`);
+  return (data as { id: string; name: string; discount_percent: number | string; customers: { count: number }[] }[]).map((t) => ({
+    id: t.id,
+    name: t.name,
+    discount_percent: Number(t.discount_percent),
+    customers: t.customers[0]?.count ?? 0,
+  }));
 }

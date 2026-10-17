@@ -8,6 +8,7 @@ import { safeAdminPath } from "@/lib/admin/paths";
 import { applyImportPlan, loadAllProducts, loadRefs, saveProduct, type ImportResult } from "@/lib/admin/catalog";
 import { inviteCustomer, newSignInToken, removeCustomer } from "@/lib/admin/customers";
 import { parseImport, planImport, type ImportPlan, type RowError } from "@/lib/admin/csv-import";
+import { parseTierForm } from "@/lib/admin/price-tiers";
 import { parseProductForm, PRODUCT_FORM_FIELDS, type ProductFormField } from "@/lib/admin/product-form";
 import { QUOTE_STATUSES, SERVICE_STATUSES } from "@/lib/admin/requests";
 import { sendAccountLinkEmail } from "@/lib/customers/email";
@@ -400,6 +401,70 @@ export async function removeCustomerAction(customerId: string) {
   await removeCustomer(await createSessionClient(), customerId);
   revalidatePath("/admin", "layout");
   redirect("/admin/customers?removed=1");
+}
+
+// ---------------------------------------------------------------------------
+// Price tiers
+// ---------------------------------------------------------------------------
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface TierState {
+  saved?: boolean;
+  errors?: Partial<Record<"name" | "discount", string>>;
+  error?: string;
+  /** What was submitted, so the form keeps it after a failed save. */
+  values?: { name: string; discount: string };
+  /** Changes on every save, so the form re-mounts with the right values. */
+  version?: number;
+}
+
+/** Add a tier (id null) or change one's name or discount. */
+export async function savePriceTierAction(id: string | null, _prev: TierState, formData: FormData): Promise<TierState> {
+  await requireStaff();
+  const values = { name: String(formData.get("name") ?? ""), discount: String(formData.get("discount") ?? "") };
+  const version = Date.now();
+  if (id !== null && !UUID.test(id)) return { error: "Tier not found.", values, version };
+  const parsed = parseTierForm(values);
+  if (!parsed.ok) return { errors: parsed.errors, values, version };
+  const supabase = await createSessionClient();
+  const { error } = id
+    ? await supabase.from("price_tiers").update(parsed.values).eq("id", id)
+    : await supabase.from("price_tiers").insert(parsed.values);
+  if (error) {
+    if (error.code === "23505") return { errors: { name: "Another tier already has this name." }, values, version };
+    return { error: `Couldn’t save the tier: ${error.message}`, values, version };
+  }
+  revalidatePath("/admin/pricing");
+  revalidatePath("/admin/customers", "layout");
+  revalidatePath("/account", "layout");
+  // A new tier's form starts empty again; an edited one shows what was saved.
+  return id ? { saved: true, version } : { saved: true, version, values: { name: "", discount: "" } };
+}
+
+/** Remove a tier. Its customers go back to list prices. */
+export async function deletePriceTierAction(id: string) {
+  await requireStaff();
+  if (!UUID.test(id)) redirect("/admin/pricing");
+  const supabase = await createSessionClient();
+  const { error } = await supabase.from("price_tiers").delete().eq("id", id);
+  if (error) throw new Error(`Removing the tier failed: ${error.message}`);
+  revalidatePath("/admin/customers", "layout");
+  revalidatePath("/account", "layout");
+  redirect("/admin/pricing?removed=1");
+}
+
+/** Put a customer on a price tier, or back on list prices. */
+export async function setCustomerTierAction(customerId: string, formData: FormData) {
+  await requireStaff();
+  const raw = String(formData.get("price_tier_id") ?? "");
+  const tierId = UUID.test(raw) ? raw : null;
+  const supabase = await createSessionClient();
+  const { error } = await supabase.from("customers").update({ price_tier_id: tierId }).eq("user_id", customerId);
+  if (error) throw new Error(`Saving the price tier failed: ${error.message}`);
+  revalidatePath(`/admin/customers/${customerId}`);
+  revalidatePath("/admin/pricing");
+  revalidatePath("/account", "layout");
 }
 
 // ---------------------------------------------------------------------------

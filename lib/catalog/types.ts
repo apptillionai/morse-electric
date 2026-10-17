@@ -1,3 +1,4 @@
+import type { PriceBreak } from "@/lib/orders/pricing";
 import type { PhotoCredit } from "./photo-credit";
 
 export const PRODUCT_CONDITIONS = ["new", "remanufactured", "used_tested", "exchange"] as const;
@@ -72,6 +73,8 @@ export interface ProductDetail extends ProductSummary {
   specs: SpecLine[];
   images: ProductImage[];
   documents: ProductDocument[];
+  /** Quantity prices, ascending by quantity; empty when there are none. */
+  priceBreaks: PriceBreak[];
   /** Other condition variants of the same unit, including this one. */
   variants: Pick<ProductSummary, "slug" | "condition" | "priceCents" | "inStock">[];
 }

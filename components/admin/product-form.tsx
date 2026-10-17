@@ -94,6 +94,15 @@ export function ProductForm({
 
       <Section title="Price and stock">
         <TextField label="Price ($)" name="price" inputMode="decimal" defaultValue={v("price")} error={e("price")} hint="Leave blank to show “Price on request”." />
+        <TextAreaField
+          label="Quantity prices"
+          name="price_breaks"
+          rows={3}
+          defaultValue={v("price_breaks")}
+          error={e("price_breaks")}
+          hint="Optional, one per line: 5+ 650.00 means 5 or more at $650 each. Each must be below the price above it. Up to 5."
+          className="sm:row-span-2"
+        />
         <TextField label="Core charge ($)" name="core_charge" inputMode="decimal" defaultValue={v("core_charge")} error={e("core_charge")} hint="Refundable deposit for exchange units." />
         <TextField label="Quantity on hand" name="qty" inputMode="numeric" defaultValue={v("qty")} error={e("qty")} hint={productId ? "Leave blank to keep the current count." : "0 or blank means special order."} />
         <SelectField label="Shipping" name="ship_class" required defaultValue={v("ship_class") || "parcel"} error={e("ship_class")} options={SHIP_OPTIONS} />

@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Enclosure, PowerSupply, ProductCondition, ShipClass } from "@/lib/catalog/types";
 import type { CatalogRefs, ExistingProduct, ImportPlan, ProductValues } from "./csv-import";
 import { partKey } from "@/lib/catalog/filters";
-import { slugify, type ProductStatus } from "./product-fields";
+import { slugify, storedPriceBreaks, type ProductStatus } from "./product-fields";
 
 /**
  * Admin-side catalog reads and writes. Always called with the staff member's
@@ -22,6 +22,7 @@ interface ProductRow {
   family_key: string | null;
   condition: ProductCondition;
   price_cents: number | null;
+  price_breaks: unknown;
   core_charge_cents: number | null;
   ship_class: ShipClass;
   weight_lb: number | string | null;
@@ -42,7 +43,7 @@ interface ProductRow {
 }
 
 const PRODUCT_SELECT =
-  "id, sku, slug, name, description, mfr_part_number, cross_references, family_key, condition, price_cents, core_charge_cents, ship_class, weight_lb, hp, rpm, frame, enclosure, power, voltage, specs, featured, status, in_stock, updated_at, category:categories(slug, name), brand:brands(name), inventory(qty_on_hand)";
+  "id, sku, slug, name, description, mfr_part_number, cross_references, family_key, condition, price_cents, price_breaks, core_charge_cents, ship_class, weight_lb, hp, rpm, frame, enclosure, power, voltage, specs, featured, status, in_stock, updated_at, category:categories(slug, name), brand:brands(name), inventory(qty_on_hand)";
 
 const num = (v: number | string | null) => (v === null ? null : Number(v));
 
@@ -63,6 +64,7 @@ function toValues(row: ProductRow): ProductValues {
     description: row.description,
     condition: row.condition,
     price_cents: row.price_cents,
+    price_breaks: storedPriceBreaks(row.price_breaks),
     core_charge_cents: row.core_charge_cents,
     ship_class: row.ship_class,
     weight_lb: num(row.weight_lb),

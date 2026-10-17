@@ -184,7 +184,7 @@ export async function createNet30Order(input: {
   }
 
   try {
-    await invoiceOrder(stripe, supabase, { order, customer, lines: cartChargeLines(cart, opened.returnDays), shipping });
+    await invoiceOrder(stripe, supabase, { order, customer, lines: cartChargeLines(cart, opened.returnDays, opened.pricing), shipping });
   } catch (error) {
     console.error("[net30] invoice for", order.reference, error instanceof Error ? error.message : error);
     return { ok: false, error: "unavailable" };

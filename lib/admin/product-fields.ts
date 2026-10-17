@@ -1,4 +1,5 @@
 import type { Enclosure, PowerSupply, ProductCondition, ShipClass, SpecLine } from "@/lib/catalog/types";
+import { parsePriceBreaks } from "@/lib/orders/pricing";
 
 /**
  * Lenient parsers shared by the product form and the CSV import, so staff can
@@ -186,6 +187,59 @@ export function parseCrossRefs(raw: string): Parsed<string[]> {
 }
 
 export const formatCrossRefs = (refs: string[], separator = "\n") => refs.join(separator);
+
+/** A quantity price as stored in products.price_breaks. */
+export interface StoredPriceBreak {
+  min_qty: number;
+  price_cents: number;
+}
+
+export const MAX_PRICE_BREAKS = 5;
+
+/**
+ * Quantity prices, one per line or separated by semicolons, written the way
+ * people do: "5+ 650.00", "10: $620", "25 @ 600". Sorted by quantity.
+ * Whether they're below the list price is checked by priceBreaksProblem.
+ */
+export function parsePriceBreakList(raw: string): Parsed<StoredPriceBreak[]> {
+  const breaks: StoredPriceBreak[] = [];
+  for (const part of clean(raw).split(/\r?\n|;/).map((p) => p.trim()).filter(Boolean)) {
+    const m = part.match(/^(\d{1,4})\s*(?:\+|or more)?\s*(?:[:=@]|at)?\s*\$?\s*(\d[\d,]*(?:\.\d{1,2})?)\s*(?:each|ea\.?)?$/i);
+    if (!m) return { error: `Quantity price “${part}” should look like “5+ 650.00”` };
+    const minQty = Number(m[1]);
+    if (minQty < 2) return { error: `Quantity prices start at 2 or more (“${part}”)` };
+    if (breaks.some((b) => b.min_qty === minQty)) return { error: `There are two prices for ${minQty} or more` };
+    breaks.push({ min_qty: minQty, price_cents: Math.round(Number(m[2].replace(/,/g, "")) * 100) });
+  }
+  if (breaks.length > MAX_PRICE_BREAKS) return { error: `At most ${MAX_PRICE_BREAKS} quantity prices` };
+  return { value: breaks.sort((a, b) => a.min_qty - b.min_qty) };
+}
+
+/** Quantity prices must each be below the list price and below the price for fewer. */
+export function priceBreaksProblem(breaks: StoredPriceBreak[], listCents: number | null): string | null {
+  if (!breaks.length) return null;
+  if (listCents === null) return "Set a price before adding quantity prices.";
+  let previous = listCents;
+  for (const [i, b] of breaks.entries()) {
+    if (b.price_cents < 1) return `The price for ${b.min_qty} or more must be above $0.`;
+    if (b.price_cents >= previous) {
+      return i === 0
+        ? `The price for ${b.min_qty} or more must be below the list price.`
+        : `The price for ${b.min_qty} or more must be below the price for ${breaks[i - 1].min_qty} or more.`;
+    }
+    previous = b.price_cents;
+  }
+  return null;
+}
+
+/** Quantity prices as read back from the database. */
+export function storedPriceBreaks(value: unknown): StoredPriceBreak[] {
+  return parsePriceBreaks(value).map((b) => ({ min_qty: b.minQty, price_cents: b.priceCents }));
+}
+
+export function formatPriceBreaks(breaks: StoredPriceBreak[], separator = "\n"): string {
+  return breaks.map((b) => `${b.min_qty}+ ${formatMoney(b.price_cents)}`).join(separator);
+}
 
 export function formatSpecs(specs: SpecLine[], separator = "\n"): string {
   return specs.map((s) => `${s.label}: ${s.value}`).join(separator);

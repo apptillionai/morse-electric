@@ -2,6 +2,7 @@ import type { ProductValues } from "./csv-import";
 import {
   formatCrossRefs,
   formatMoney,
+  formatPriceBreaks,
   formatSpecs,
   parseBool,
   parseCondition,
@@ -10,16 +11,18 @@ import {
   parseMoney,
   parseNumber,
   parsePower,
+  parsePriceBreakList,
   parseShipClass,
   parseSpecs,
   parseStatus,
+  priceBreaksProblem,
   slugify,
   type Parsed,
 } from "./product-fields";
 
 export const PRODUCT_FORM_FIELDS = [
   "sku", "name", "slug", "category", "brand", "mfr_part_number", "cross_references", "condition", "status", "featured", "price",
-  "core_charge", "qty", "hp", "rpm", "frame", "enclosure", "power", "voltage", "ship_class", "weight_lb",
+  "price_breaks", "core_charge", "qty", "hp", "rpm", "frame", "enclosure", "power", "voltage", "ship_class", "weight_lb",
   "family_key", "description", "specs",
 ] as const;
 export type ProductFormField = (typeof PRODUCT_FORM_FIELDS)[number];
@@ -70,6 +73,7 @@ export function parseProductForm(form: Record<ProductFormField, string>, categor
     description: take("description", optional(form.description, 4000)),
     condition: take("condition", parseCondition(form.condition)),
     price_cents: take("price", parseMoney(form.price)),
+    price_breaks: take("price_breaks", parsePriceBreakList(form.price_breaks)),
     core_charge_cents: take("core_charge", parseMoney(form.core_charge)),
     ship_class: take("ship_class", parseShipClass(form.ship_class)),
     weight_lb: take("weight_lb", parseNumber(form.weight_lb, "Weight")),
@@ -84,6 +88,11 @@ export function parseProductForm(form: Record<ProductFormField, string>, categor
     status: take("status", parseStatus(form.status)),
     qty: take("qty", parseNumber(form.qty, "Quantity", { integer: true })),
   };
+
+  if (!errors.price && !errors.price_breaks) {
+    const problem = priceBreaksProblem(values.price_breaks, values.price_cents);
+    if (problem) errors.price_breaks = problem;
+  }
 
   return Object.keys(errors).length ? { ok: false, fieldErrors: errors } : { ok: true, sku, values };
 }
@@ -103,6 +112,7 @@ export function productToForm(sku: string, v: ProductValues): Record<ProductForm
     status: v.status,
     featured: v.featured ? "on" : "",
     price: formatMoney(v.price_cents),
+    price_breaks: formatPriceBreaks(v.price_breaks),
     core_charge: formatMoney(v.core_charge_cents),
     qty: n(v.qty),
     hp: n(v.hp),

@@ -23,6 +23,7 @@ These are agreed defaults. Items marked **Morse to confirm** need a value or wor
 | Core charges | The core is its own line at checkout, refunded when the old unit comes back and passes inspection. "Exchange" items always carry a core. | Return window (proposed 30 days); what counts as an acceptable core |
 | Net-30 | Staff turn on terms and set a credit limit per customer. Billing goes through Stripe Invoicing (hosted payment page, ACH, automatic reminders). An order is blocked if open balance + order total would exceed the limit. | Who qualifies; default limit |
 | Accounting | Stripe is the system of record for now. Revisit a QuickBooks sync in step 5. | Which accounting software Morse uses |
+| Contractor pricing | Named tiers give a % off list prices; products can have quantity prices. The customer pays the lowest of the three, never stacked. Core charges and shipping aren't discounted. Google Shopping shows list prices. | The tiers, who's on them, and any products to exclude |
 | Out of stock | Only in-stock items can be bought online. Out-of-stock items keep "Special order → request a quote". | — |
 | Policy pages | Terms of Sale, Returns, Shipping, Warranty and Privacy pages are live as drafts at `/policies/…`. They go final before real payments. | The policy wording and every bracketed `[XX]` value |
 
@@ -107,7 +108,8 @@ These are agreed defaults. Items marked **Morse to confirm** need a value or wor
 4. **Equipment list per customer.** Done in Step 5. A customer's motors with their nameplate details, repair history and "order this again". This suits plant maintenance managers.
 5. **Cross-reference search.** Done in Step 5. Search by a competitor's or the original manufacturer's part number in the part finder.
 6. **Google Shopping free listings.** Done in Step 5: a Merchant Center feed and shipping details in the Product JSON-LD. The return policy is set once in Merchant Center rather than per product.
-7. **Later:** contractor or volume pricing tiers, a QuickBooks sync, live freight rates.
+7. **Contractor and volume pricing.** Done in Step 6: price tiers (a % off list) that staff give customers, and quantity prices per product. A customer pays the lowest of list, quantity and tier price; discounts never stack.
+8. **Later:** a QuickBooks sync, live freight rates.
 
 ## Order of work
 
@@ -121,6 +123,7 @@ Each step is its own PR. Every PR passes `npm run lint`, `npm run typecheck`, `n
 | 3 | Net-30 terms, credit limits, Stripe Invoicing, the "Request a business account" form ✅ | Step 1 |
 | 4 | Payable quotes; online repair approval and payment ✅ | Step 1 (Step 3 for paying on terms) |
 | 5 | Merchant Center feed ✅, equipment lists ✅, cross-reference search ✅; live parcel rates and an accounting sync wait on Morse choosing a carrier account and accounting software | — |
+| 6 | Contractor price tiers and quantity prices, in the cart, checkout, Net-30 and catalog quotes ✅ | Step 1 |
 
 ### Before turning the store on
 

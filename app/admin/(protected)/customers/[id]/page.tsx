@@ -2,14 +2,14 @@ import Link from "next/link";
 import { nameplateLine } from "@/lib/customers/equipment";
 import { listEquipment } from "@/lib/customers/equipment-store";
 import { notFound } from "next/navigation";
-import { removeCustomerAction, setTaxExemptAction } from "@/app/admin/actions";
+import { removeCustomerAction, setCustomerTierAction, setTaxExemptAction } from "@/app/admin/actions";
 import { PageHeader } from "@/components/admin/admin-shell";
 import { NewSignInLinkForm, TermsForm } from "@/components/admin/customer-forms";
 import { DeleteButton } from "@/components/admin/delete-button";
 import { Detail, formatDate, StatusBadge } from "@/components/admin/inbox";
 import { Button } from "@/components/ui/button";
 import { staffClient } from "@/lib/admin/auth";
-import { getCustomerDetail, getSignInInfo } from "@/lib/admin/customers";
+import { getCustomerDetail, getSignInInfo, listPriceTiers } from "@/lib/admin/customers";
 import { EQUIPMENT_TYPES } from "@/lib/requests/schemas";
 import { formatPrice } from "@/lib/utils";
 
@@ -27,7 +27,12 @@ export default async function CustomerPage(props: PageProps<"/admin/customers/[i
   const { id } = await props.params;
   if (!UUID.test(id)) notFound();
   const supabase = await staffClient();
-  const [found, signIn, units] = await Promise.all([getCustomerDetail(supabase, id), getSignInInfo(id), listEquipment(supabase, id)]);
+  const [found, signIn, units, tiers] = await Promise.all([
+    getCustomerDetail(supabase, id),
+    getSignInInfo(id),
+    listEquipment(supabase, id),
+    listPriceTiers(supabase),
+  ]);
   if (!found) notFound();
   const { customer: c, quotes, service, openBalanceCents } = found;
   const cert = c.tax_cert_path
@@ -159,6 +164,34 @@ export default async function CustomerPage(props: PageProps<"/admin/customers/[i
               </p>
             )}
             <TermsForm customerId={c.user_id} terms={c.terms} limitCents={c.credit_limit_cents} />
+          </section>
+          <section aria-labelledby="c-pricing" className="flex flex-col gap-3 rounded-md border border-edge bg-surface p-5">
+            <h2 id="c-pricing" className="font-display text-xl font-bold uppercase tracking-[0.04em]">Pricing</h2>
+            {tiers.length === 0 ? (
+              <p className="text-sm text-fg-muted">
+                Pays list prices. <Link href="/admin/pricing">Set up price tiers</Link> to give customers a discount.
+              </p>
+            ) : (
+              <form action={setCustomerTierAction.bind(null, c.user_id)} className="flex flex-wrap items-end gap-3">
+                <label htmlFor="price_tier_id" className="flex min-w-0 flex-[1_1_200px] flex-col gap-1.5 text-sm font-semibold">
+                  Price tier
+                  <select
+                    id="price_tier_id"
+                    name="price_tier_id"
+                    defaultValue={c.price_tier_id ?? ""}
+                    className="h-11 rounded border border-edge-strong bg-surface px-3 font-normal text-fg"
+                  >
+                    <option value="">List prices</option>
+                    {tiers.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({Number(t.discount_percent.toFixed(2))}% off)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button type="submit" variant="dark" size="sm" className="h-11">Save</Button>
+              </form>
+            )}
           </section>
           <section aria-labelledby="c-login" className="flex flex-col gap-3 rounded-md border border-edge bg-surface p-5">
             <h2 id="c-login" className="font-display text-xl font-bold uppercase tracking-[0.04em]">Sign-in</h2>

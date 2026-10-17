@@ -3,6 +3,7 @@ import type { Enclosure, PowerSupply, ProductCondition, ShipClass, SpecLine } fr
 import {
   formatCrossRefs,
   formatMoney,
+  formatPriceBreaks,
   formatSpecs,
   parseBool,
   parseCondition,
@@ -11,12 +12,15 @@ import {
   parseMoney,
   parseNumber,
   parsePower,
+  parsePriceBreakList,
   parseShipClass,
   parseSpecs,
   parseStatus,
+  priceBreaksProblem,
   slugify,
   type Parsed,
   type ProductStatus,
+  type StoredPriceBreak,
 } from "./product-fields";
 
 /**
@@ -35,6 +39,7 @@ export const COLUMNS = {
   category: ["category", "product line", "type"],
   condition: ["condition"],
   price: ["price", "unit price", "sell price"],
+  price_breaks: ["quantity prices", "quantity pricing", "volume pricing", "price breaks", "qty breaks"],
   core_charge: ["core charge", "core", "core deposit"],
   qty: ["qty", "quantity", "qty on hand", "on hand", "stock"],
   status: ["status"],
@@ -59,7 +64,7 @@ export type Column = keyof typeof COLUMNS;
 
 /** Column order for the template and the catalog export. */
 export const EXPORT_COLUMNS: Column[] = [
-  "sku", "name", "category", "condition", "price", "core_charge", "qty", "status", "featured", "brand",
+  "sku", "name", "category", "condition", "price", "price_breaks", "core_charge", "qty", "status", "featured", "brand",
   "mfr_part_number", "cross_references", "hp", "rpm", "frame", "enclosure", "power", "voltage", "ship_class",
   "weight_lb", "description", "specs", "family_key", "slug",
 ];
@@ -82,6 +87,8 @@ export interface ProductValues {
   description: string | null;
   condition: ProductCondition;
   price_cents: number | null;
+  /** Quantity prices, below the list price and each other. */
+  price_breaks: StoredPriceBreak[];
   core_charge_cents: number | null;
   ship_class: ShipClass;
   weight_lb: number | null;
@@ -129,6 +136,7 @@ const FIELD_PARSERS: Record<Exclude<Column, "sku">, [FieldName, (raw: string) =>
   category: ["category", text(80)],
   condition: ["condition", parseCondition],
   price: ["price_cents", parseMoney],
+  price_breaks: ["price_breaks", parsePriceBreakList],
   core_charge: ["core_charge_cents", parseMoney],
   qty: ["qty", (raw) => parseNumber(raw, "Quantity", { integer: true })],
   status: ["status", parseStatus],
@@ -257,6 +265,7 @@ const DEFAULTS: Omit<ProductValues, "name" | "slug" | "category"> = {
   description: null,
   condition: "new",
   price_cents: null,
+  price_breaks: [],
   core_charge_cents: null,
   ship_class: "parcel",
   weight_lb: null,
@@ -326,6 +335,11 @@ export function planImport(parsed: ParsedImport, existing: ExistingProduct[], re
         continue;
       }
       if (v.slug === null) delete v.slug; // blank slug cell keeps the current URL
+      const breaksProblem = priceBreaksProblem(v.price_breaks ?? current.values.price_breaks, v.price_cents === undefined ? current.values.price_cents : v.price_cents);
+      if (breaksProblem) {
+        errors.push({ line: row.line, sku: row.sku, message: breaksProblem });
+        continue;
+      }
       const changes: Partial<ProductValues> = {};
       for (const [field, value] of Object.entries(v) as [FieldName, unknown][]) {
         if (field === "brand" ? !same(String(value ?? "").toLowerCase(), String(current.values.brand ?? "").toLowerCase()) : !same(value, current.values[field])) {
@@ -351,6 +365,11 @@ export function planImport(parsed: ParsedImport, existing: ExistingProduct[], re
     }
     if (!v.category) {
       errors.push({ line: row.line, sku: row.sku, message: "New products need a category." });
+      continue;
+    }
+    const breaksProblem = priceBreaksProblem(v.price_breaks ?? [], v.price_cents ?? null);
+    if (breaksProblem) {
+      errors.push({ line: row.line, sku: row.sku, message: breaksProblem });
       continue;
     }
     const condition = v.condition ?? "new";
@@ -395,6 +414,7 @@ export function exportRow(sku: string, v: ProductValues): string[] {
     category: v.category,
     condition: v.condition,
     price: formatMoney(v.price_cents),
+    price_breaks: formatPriceBreaks(v.price_breaks, "; "),
     core_charge: formatMoney(v.core_charge_cents),
     qty: n(v.qty),
     status: v.status,
@@ -423,7 +443,7 @@ export const EXPORT_HEADER = EXPORT_COLUMNS.map((c) => COLUMNS[c][0]);
 const TEMPLATE_EXAMPLES: Partial<Record<Column, string>>[] = [
   {
     sku: "EM-5HP-184T-N", name: "5 HP General Purpose Motor, 184T", category: "electric-motors", condition: "new",
-    price: "689.00", qty: "4", status: "active", brand: "Baldor", mfr_part_number: "EM3615T", cross_references: "WEG 00518ET3E184T; Marathon U206", hp: "5", rpm: "1750",
+    price: "689.00", price_breaks: "5+ 650.00; 10+ 620.00", qty: "4", status: "active", brand: "Baldor", mfr_part_number: "EM3615T", cross_references: "WEG 00518ET3E184T; Marathon U206", hp: "5", rpm: "1750",
     frame: "184T", enclosure: "TEFC", power: "3 phase", voltage: "208-230/460", ship_class: "parcel", weight_lb: "86",
     description: "Premium efficiency, rolled steel frame.", specs: "Service factor: 1.15; Insulation: Class F",
     family_key: "em-5hp-184t",

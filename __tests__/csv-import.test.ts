@@ -16,9 +16,11 @@ import {
   parseMoney,
   parseNumber,
   parsePower,
+  parsePriceBreakList,
   parseShipClass,
   parseSpecs,
   parseStatus,
+  priceBreaksProblem,
   slugify,
 } from "@/lib/admin/product-fields";
 
@@ -79,6 +81,39 @@ describe("field parsers", () => {
   });
 });
 
+describe("quantity prices", () => {
+  it("reads them the way people write them, sorted by quantity", () => {
+    expect(parsePriceBreakList("10: $620\n5+ 650.00")).toEqual({
+      value: [
+        { min_qty: 5, price_cents: 65000 },
+        { min_qty: 10, price_cents: 62000 },
+      ],
+    });
+    expect(parsePriceBreakList("25 @ 1,200 each; 50 or more 1100.5").value).toEqual([
+      { min_qty: 25, price_cents: 120000 },
+      { min_qty: 50, price_cents: 110050 },
+    ]);
+    expect(parsePriceBreakList("  ")).toEqual({ value: [] });
+  });
+
+  it("rejects what it can't read, quantities under 2, repeats and more than 5", () => {
+    expect(parsePriceBreakList("five for 650").error).toMatch(/should look like/);
+    expect(parsePriceBreakList("1+ 600").error).toMatch(/2 or more/);
+    expect(parsePriceBreakList("5+ 600; 5+ 590").error).toMatch(/two prices for 5/);
+    expect(parsePriceBreakList("2+ 9; 3+ 8; 4+ 7; 5+ 6; 6+ 5; 7+ 4").error).toMatch(/At most 5/);
+  });
+
+  it("must each be below the list price and the price for fewer", () => {
+    const breaks = (...pairs: [number, number][]) => pairs.map(([min_qty, price_cents]) => ({ min_qty, price_cents }));
+    expect(priceBreaksProblem([], null)).toBeNull();
+    expect(priceBreaksProblem(breaks([5, 65000], [10, 62000]), 68900)).toBeNull();
+    expect(priceBreaksProblem(breaks([5, 65000]), null)).toMatch(/Set a price/);
+    expect(priceBreaksProblem(breaks([5, 68900]), 68900)).toMatch(/below the list price/);
+    expect(priceBreaksProblem(breaks([5, 62000], [10, 65000]), 68900)).toMatch(/below the price for 5 or more/);
+    expect(priceBreaksProblem(breaks([5, 0]), 68900)).toMatch(/above \$0/);
+  });
+});
+
 describe("parseImport", () => {
   it("maps header aliases and reports unknown headers", () => {
     const parsed = parseImport("Part #,Product Name,Category,Unit Price,Qty on hand,Color\nM-1,Motor,Electric motors,$99,3,red\n");
@@ -135,6 +170,7 @@ function existing(sku: string, overrides: Partial<ProductValues> = {}): Existing
       description: null,
       condition: "new",
       price_cents: 50000,
+      price_breaks: [],
       core_charge_cents: null,
       ship_class: "parcel",
       weight_lb: null,
@@ -194,6 +230,35 @@ describe("planImport", () => {
     expect(plan.updates.map((u) => u.sku)).toEqual(["M-2"]);
   });
 
+  it("checks quantity prices against the list price, new or already on file", () => {
+    const onFile = [
+      existing("M-1"),
+      existing("M-2", { slug: "x", price_breaks: [{ min_qty: 5, price_cents: 45000 }] }),
+    ];
+    const breaks = planImport(parseImport("sku,quantity prices\nM-1,5+ 450\n"), onFile, refs);
+    expect(breaks.errors).toEqual([]);
+    expect(breaks.updates).toEqual([{ line: 2, sku: "M-1", id: "id-M-1", changes: { price_breaks: [{ min_qty: 5, price_cents: 45000 }] } }]);
+    // Without the column, M-2 keeps its 5+ price, which is still under the new list price.
+    const price = planImport(parseImport("sku,price\nM-2,600\n"), onFile, refs);
+    expect(price.errors).toEqual([]);
+    expect(price.updates).toEqual([{ line: 2, sku: "M-2", id: "id-M-2", changes: { price_cents: 60000 } }]);
+    // A blank price cell means "price on request", which can't have quantity prices.
+    expect(planImport(parseImport("sku,price\nM-2,\n"), onFile, refs).errors[0].message).toMatch(/Set a price/);
+  });
+
+  it("refuses quantity prices that wouldn't be below the list price", () => {
+    const onFile = [existing("M-2", { price_breaks: [{ min_qty: 5, price_cents: 45000 }] })];
+    expect(planImport(parseImport("sku,price\nM-2,400\n"), onFile, refs).errors[0].message).toMatch(/below the list price/);
+    expect(planImport(parseImport("sku,quantity prices\nM-2,5+ 550\n"), onFile, refs).errors[0].message).toMatch(/below the list price/);
+
+    const creates = planImport(parseImport("sku,name,category,price,quantity prices\nN-1,Pump,pumps,,5+ 100\nN-2,Pump,pumps,200,5+ 150; 10+ 140\n"), [], refs);
+    expect(creates.errors.map((e) => [e.sku, e.message])).toEqual([["N-1", "Set a price before adding quantity prices."]]);
+    expect(creates.creates[0].values.price_breaks).toEqual([
+      { min_qty: 5, price_cents: 15000 },
+      { min_qty: 10, price_cents: 14000 },
+    ]);
+  });
+
   it("refuses a slug another product already uses", () => {
     const parsed = parseImport("sku,slug\nM-2,5-hp-motor\n");
     const plan = planImport(parsed, [existing("M-1"), existing("M-2", { slug: "x" })], refs);
@@ -213,6 +278,10 @@ describe("export", () => {
       featured: true,
       hp: 7.5,
       cross_references: ["WEG 00518ET3E184T", "Leeson 121.017"],
+      price_breaks: [
+        { min_qty: 5, price_cents: 45000 },
+        { min_qty: 10, price_cents: 42050 },
+      ],
     });
     const csv = toCsv([EXPORT_HEADER, exportRow(product.sku, product.values)]);
     const plan = planImport(parseImport(csv), [product], refs);

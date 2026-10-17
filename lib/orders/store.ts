@@ -6,7 +6,7 @@ import { getSiteSettings } from "@/lib/site-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { CART_COOKIE, parseCart, serializeCart, type CartLine } from "./cart";
-import type { BuyableProduct } from "./pricing";
+import { parsePriceBreaks, tierOf, type BuyableProduct, type CustomerPricing } from "./pricing";
 
 /** Server-side Stripe client, or null when STRIPE_SECRET_KEY isn't set. */
 export function getStripe(): Stripe | null {
@@ -65,6 +65,7 @@ interface ProductRow {
   core_charge_cents: number | null;
   ship_class: BuyableProduct["shipClass"];
   weight_lb: number | string | null;
+  price_breaks: unknown;
   inventory: { qty_on_hand: number; qty_reserved: number } | { qty_on_hand: number; qty_reserved: number }[] | null;
 }
 
@@ -76,7 +77,7 @@ export async function loadBuyableProducts(ids: string[]): Promise<Map<string, Bu
   if (!ids.length) return new Map();
   const { data, error } = await createAdminClient()
     .from("products")
-    .select("id, sku, slug, name, condition, status, price_cents, core_charge_cents, ship_class, weight_lb, inventory(qty_on_hand, qty_reserved)")
+    .select("id, sku, slug, name, condition, status, price_cents, price_breaks, core_charge_cents, ship_class, weight_lb, inventory(qty_on_hand, qty_reserved)")
     .in("id", ids);
   if (error) throw new Error(`Cart products: ${error.message}`);
   return new Map(
@@ -95,9 +96,27 @@ export async function loadBuyableProducts(ids: string[]): Promise<Map<string, Bu
           coreChargeCents: row.core_charge_cents,
           shipClass: row.ship_class,
           weightLb: row.weight_lb === null ? null : Number(row.weight_lb),
+          priceBreaks: parsePriceBreaks(row.price_breaks),
           available: inv ? Math.max(0, inv.qty_on_hand - inv.qty_reserved) : 0,
         },
       ];
     }),
   );
 }
+
+/**
+ * A customer's price tier, or null when they pay list prices. Read with the
+ * service role, so checkout prices from the database and never from anything
+ * the browser sent.
+ */
+export async function customerPricing(customerId: string | null | undefined): Promise<CustomerPricing | null> {
+  if (!customerId) return null;
+  const { data, error } = await createAdminClient()
+    .from("customers")
+    .select("price_tier:price_tiers(name, discount_percent)")
+    .eq("user_id", customerId)
+    .maybeSingle();
+  if (error) throw new Error(`Customer pricing: ${error.message}`);
+  return tierOf(data?.price_tier);
+}
+

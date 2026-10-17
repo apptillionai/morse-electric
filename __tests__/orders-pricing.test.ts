@@ -24,6 +24,7 @@ const product = (over: Partial<BuyableProduct> = {}): BuyableProduct => ({
   coreChargeCents: null,
   shipClass: "parcel",
   weightLb: 20,
+  priceBreaks: [],
   available: 3,
   ...over,
 });

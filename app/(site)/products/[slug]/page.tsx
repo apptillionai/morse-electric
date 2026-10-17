@@ -2,6 +2,7 @@ import { Truck, Wrench } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { TierPrice } from "@/components/catalog/tier-price";
 import { DemoCatalogBanner } from "@/components/catalog/demo-banner";
 import { PhotoCredits, PriceLabel, ProductPhoto, StockStatus, specLine } from "@/components/catalog/product-bits";
 import { PhoneLink } from "@/components/site/site-header";
@@ -201,6 +202,17 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
 
             <div className="flex flex-col gap-1">
               <PriceLabel cents={product.priceCents} className={product.priceCents !== null ? "text-5xl" : "text-2xl"} />
+              {product.priceCents !== null && product.priceBreaks.length > 0 && (
+                <dl aria-label="Quantity prices" className="flex flex-wrap gap-x-4 gap-y-1 text-[15px]">
+                  {product.priceBreaks.map((b) => (
+                    <div key={b.minQty} className="flex gap-1.5">
+                      <dt className="text-fg-muted">{b.minQty}+</dt>
+                      <dd className="font-semibold">{formatPrice(b.priceCents)} each</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              {product.priceCents !== null && <TierPrice listCents={product.priceCents} />}
               {core && (
                 <span className="text-sm text-fg-muted">
                   Plus {core} refundable core charge, credited when your old unit comes back.

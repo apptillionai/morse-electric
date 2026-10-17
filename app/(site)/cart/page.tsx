@@ -5,8 +5,8 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { CONDITION_LABELS } from "@/lib/catalog/types";
 import { CHECKOUT_ERRORS, isCheckoutError } from "@/lib/orders/checkout";
 import { MAX_LINE_QUANTITY } from "@/lib/orders/cart";
-import { priceCart } from "@/lib/orders/pricing";
-import { loadBuyableProducts, readCart, storeIsOpen } from "@/lib/orders/store";
+import { formatPercent, nextPriceBreak, priceCart, priceNote } from "@/lib/orders/pricing";
+import { customerPricing, loadBuyableProducts, readCart, storeIsOpen } from "@/lib/orders/store";
 import { getSignedInUser } from "@/lib/customers/account";
 import { getBusiness, getSiteSettings } from "@/lib/site-settings";
 import { createSessionClient } from "@/lib/supabase/server";
@@ -43,11 +43,16 @@ export default async function CartPage(props: PageProps<"/cart">) {
     );
   }
 
-  const [lines, { shippingRates, coreReturnDays }] = await Promise.all([readCart(), getSiteSettings()]);
-  const cart = priceCart(lines, await loadBuyableProducts(lines.map((l) => l.productId)), shippingRates);
+  const [lines, { shippingRates, coreReturnDays }, user] = await Promise.all([
+    readCart(),
+    getSiteSettings(),
+    getSignedInUser().catch(() => null),
+  ]);
+  // Customers on a price tier see (and pay) their own prices.
+  const pricing = user?.customer?.price_tier_id ? await customerPricing(user.id) : null;
+  const cart = priceCart(lines, await loadBuyableProducts(lines.map((l) => l.productId)), shippingRates, pricing);
   const error = one("error");
   // Net-30 customers can charge orders to their account, up to their available credit.
-  const user = await getSignedInUser().catch(() => null);
   const terms = user?.customer?.terms === "net30" ? user.customer : null;
   const available = terms
     ? Math.max(0, terms.credit_limit_cents - (((await (await createSessionClient()).rpc("my_open_balance_cents")).data as number | null) ?? 0))
@@ -72,6 +77,13 @@ export default async function CartPage(props: PageProps<"/cart">) {
         </Notice>
       )}
 
+      {pricing && cart.lines.length > 0 && (
+        <p className="text-sm text-fg-muted">
+          Your account gets {pricing.tierName.toLowerCase()} pricing: {formatPercent(pricing.discountPercent)} off list prices, or
+          the quantity price when that’s lower.
+        </p>
+      )}
+
       {cart.lines.length === 0 ? (
         <div className="flex flex-col items-start gap-4 rounded-md border border-edge bg-surface p-6">
           <p className="text-fg-muted">Your cart is empty.</p>
@@ -80,7 +92,10 @@ export default async function CartPage(props: PageProps<"/cart">) {
       ) : (
         <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px]">
           <ul className="flex flex-col divide-y divide-edge rounded-md border border-edge bg-surface" aria-label="Items in your cart">
-            {cart.lines.map(({ product, quantity, lineCents, coreCents }) => (
+            {cart.lines.map(({ product, quantity, unit, lineCents, coreCents }) => {
+              const note = priceNote(unit, product, quantity, pricing);
+              const next = nextPriceBreak(product, quantity, unit);
+              return (
               <li key={product.id} className="flex flex-wrap items-start gap-x-6 gap-y-3 p-5">
                 <div className="flex min-w-0 flex-[1_1_260px] flex-col gap-1">
                   <Link href={`/products/${product.slug}`} className="font-semibold">
@@ -90,9 +105,20 @@ export default async function CartPage(props: PageProps<"/cart">) {
                     {CONDITION_LABELS[product.condition]} · <span className="font-mono">Part # {product.sku}</span>
                   </span>
                   <span className="text-sm text-fg-muted">
-                    {money(product.priceCents ?? 0)} each
+                    {money(unit.unitCents)} each
+                    {note && (
+                      <>
+                        {" "}
+                        <span className="font-semibold text-fg">· {note}</span>, list <s>{money(unit.listCents)}</s>
+                      </>
+                    )}
                     {product.shipClass === "pickup_only" && " · pickup only"}
                   </span>
+                  {next && next.minQty <= Math.min(MAX_LINE_QUANTITY, product.available) && (
+                    <span className="text-sm text-fg-muted">
+                      Buy {next.minQty} or more for {money(next.priceCents)} each.
+                    </span>
+                  )}
                   {(product.coreChargeCents ?? 0) > 0 && (
                     <span className="text-sm text-fg-muted">
                       Plus {money(product.coreChargeCents ?? 0)} refundable core charge each. Return your old unit within{" "}
@@ -126,7 +152,8 @@ export default async function CartPage(props: PageProps<"/cart">) {
                   </form>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
 
           <form action={checkoutAction} className="flex flex-col gap-5 rounded-md border border-edge bg-surface p-6">
