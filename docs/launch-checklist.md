@@ -9,7 +9,7 @@ Last updated: Phase 2, step 4 (payable quotes and online repair approval).
 - [x] ✅ [PR #8](https://github.com/apptillionai/morse-electric/pull/8) (Phase 2 plan, steps 0–3) merged and live.
 - [x] ✅ Request-photos, orders, core-returns and Net-30 migrations applied to the live database.
 - [ ] Review the step 4 PR (payable quotes and online repair approval) and merge it.
-- [ ] Quotes migration (`20261017010000_quotes.sql`) applied to the live database. Claude does this once you say so. **It must happen before the merge**: the request pages in the admin read the new tables.
+- [x] ✅ Quotes migration applied to the live database.
 - [ ] After the merge, send one quote request with a photo on the live site and open it in Admin → Quotes to check the photo shows. (Previews can't save requests: they don't have `SUPABASE_SECRET_KEY`.)
 
 ## 2. Vercel environment variables
