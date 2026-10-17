@@ -14,10 +14,10 @@ import {
   POWER_LABELS,
   type ProductDetail,
 } from "@/lib/catalog/types";
-import { onlinePurchaseBlock } from "@/lib/orders/pricing";
+import { onlinePurchaseBlock, shippingRateFor, type ShippingRate } from "@/lib/orders/pricing";
 import { storeIsOpen } from "@/lib/orders/store";
 import { SITE } from "@/lib/site";
-import { getBusiness } from "@/lib/site-settings";
+import { getBusiness, getSiteSettings } from "@/lib/site-settings";
 import { cn, formatHp, formatPrice } from "@/lib/utils";
 
 export async function generateMetadata(props: PageProps<"/products/[slug]">): Promise<Metadata> {
@@ -51,6 +51,7 @@ function specRows(p: ProductDetail): [string, string][] {
     ["Voltage", p.voltage],
     ["Condition", CONDITION_LABELS[p.condition]],
     ["Weight", p.weightLb !== null ? `${p.weightLb} lb` : null],
+    ["Replaces", p.crossReferences.length ? p.crossReferences.join(", ") : null],
   ];
   return [
     ...rows.filter((r): r is [string, string] => r[1] !== null),
@@ -64,7 +65,9 @@ const FULFILLMENT: Record<ProductDetail["shipClass"], string> = {
   pickup_only: "Available for pickup at our shop.",
 };
 
-function productJsonLd(p: ProductDetail) {
+function productJsonLd(p: ProductDetail, rates: ShippingRate[]) {
+  // Parcel items with a weight in a shipping band have a known US shipping price.
+  const shipCents = p.shipClass === "parcel" && p.weightLb !== null ? shippingRateFor(p.weightLb, rates) : null;
   return {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -87,6 +90,14 @@ function productJsonLd(p: ProductDetail) {
             priceCurrency: "USD",
             availability: p.inStock ? "https://schema.org/InStock" : "https://schema.org/BackOrder",
             url: `${SITE.url}/products/${p.slug}`,
+            shippingDetails:
+              shipCents !== null
+                ? {
+                    "@type": "OfferShippingDetails",
+                    shippingRate: { "@type": "MonetaryAmount", value: (shipCents / 100).toFixed(2), currency: "USD" },
+                    shippingDestination: { "@type": "DefinedRegion", addressCountry: "US" },
+                  }
+                : undefined,
           }
         : undefined,
   };
@@ -100,7 +111,7 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
   const category = (await catalog.listCategories()).find((c) => c.slug === product.categorySlug);
   const quoteHref = `/quote?sku=${encodeURIComponent(product.sku)}`;
   const core = formatPrice(product.coreChargeCents);
-  const business = await getBusiness();
+  const [business, { shippingRates }] = await Promise.all([getBusiness(), getSiteSettings()]);
   // Buyable online: the store is open, and the item is priced, in stock, and
   // ships by parcel or is collected (everything else stays quote-only).
   const buyable =
@@ -113,7 +124,7 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd(product)).replace(/</g, "\\u003c") }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd(product, shippingRates)).replace(/</g, "\\u003c") }}
       />
       <DemoCatalogBanner show={catalog.isDemo} />
       <div className="mx-auto flex max-w-7xl flex-col gap-10 px-6 pt-7 pb-20">

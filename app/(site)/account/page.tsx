@@ -68,6 +68,11 @@ export default async function AccountPage(props: PageProps<"/account">) {
                 {job.is_rush && <span className="ml-2 rounded-full border border-danger px-2 py-0.5 text-xs font-semibold text-danger">Rush</span>}
               </span>
             </div>
+            {job.unit && (
+              <p className="text-sm">
+                Unit: <Link href={`/account/equipment#unit-${job.unit.id}`}>{job.unit.label}</Link>
+              </p>
+            )}
             <RepairProgress status={job.status} />
             <p className="font-medium">{SERVICE_STATUS_MESSAGE[job.status]}</p>
             {(() => {

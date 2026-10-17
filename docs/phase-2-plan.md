@@ -104,9 +104,9 @@ These are agreed defaults. Items marked **Morse to confirm** need a value or wor
 1. **Payable quotes.** Done in Step 4. This has the biggest payoff, because most industrial items will stay price-on-request. Staff price a quote request in the admin (lines, cores, shipping), and the customer gets a link to accept and pay, or charge it to Net-30. An accepted quote becomes an order, and `quote_status` moves to `won`.
 2. **Approve and pay for repairs online.** Done in Step 4. Service jobs already have a Quote stage. The customer approves or declines the repair quote (from the emailed link or `/account`), and pays online when the job is Ready.
 3. **Photo uploads on the public forms.** Done in Step 0: nameplate photos speed up both quotes and repairs.
-4. **Equipment list per customer.** A customer's motors with their nameplate details, repair history and "order this again". This suits plant maintenance managers.
-5. **Cross-reference search.** Search by a competitor's or the original manufacturer's part number in the part finder.
-6. **Google Shopping free listings.** Add shipping and return details to the Product JSON-LD and publish a Merchant Center feed.
+4. **Equipment list per customer.** Done in Step 5. A customer's motors with their nameplate details, repair history and "order this again". This suits plant maintenance managers.
+5. **Cross-reference search.** Done in Step 5. Search by a competitor's or the original manufacturer's part number in the part finder.
+6. **Google Shopping free listings.** Done in Step 5: a Merchant Center feed and shipping details in the Product JSON-LD. The return policy is set once in Merchant Center rather than per product.
 7. **Later:** contractor or volume pricing tiers, a QuickBooks sync, live freight rates.
 
 ## Order of work
@@ -120,7 +120,7 @@ Each step is its own PR. Every PR passes `npm run lint`, `npm run typecheck`, `n
 | 2 | Core charges at checkout, core returns tracking, refunds and credits, reminders ✅ | Step 1 |
 | 3 | Net-30 terms, credit limits, Stripe Invoicing, the "Request a business account" form ✅ | Step 1 |
 | 4 | Payable quotes; online repair approval and payment ✅ | Step 1 (Step 3 for paying on terms) |
-| 5 | Merchant Center feed, live parcel rates, accounting sync if needed, equipment lists, cross-reference search | — |
+| 5 | Merchant Center feed ✅, equipment lists ✅, cross-reference search ✅; live parcel rates and an accounting sync wait on Morse choosing a carrier account and accounting software | — |
 
 ### Before turning the store on
 

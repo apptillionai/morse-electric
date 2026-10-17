@@ -39,7 +39,7 @@ export async function insertQuoteRequest(
 /** Insert a service request. */
 export async function insertServiceRequest(
   input: ServiceRequestInput,
-  context: { sourcePath: string | null; customerId: string | null },
+  context: { sourcePath: string | null; customerId: string | null; equipmentId?: string | null },
 ): Promise<StoredRequest> {
   const { data, error } = await createAdminClient()
     .from("service_requests")
@@ -58,6 +58,7 @@ export async function insertServiceRequest(
       wants_replacement_quote: input.wantsReplacementQuote,
       source_path: context.sourcePath,
       customer_id: context.customerId,
+      equipment_id: context.equipmentId ?? null,
     })
     .select("id, reference")
     .single();

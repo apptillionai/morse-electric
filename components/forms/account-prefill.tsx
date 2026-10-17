@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type RefObject } from "react";
+import type { UnitPrefill } from "@/lib/customers/equipment";
 
 interface Prefill {
   name: string;
   company: string;
   email: string;
   phone: string;
+  /** The customer's equipment list (service form only uses it). */
+  units?: UnitPrefill[];
 }
 
 /**

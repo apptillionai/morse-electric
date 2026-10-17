@@ -87,12 +87,17 @@ Invite-only: staff create the account at **/admin/customers → Invite customer*
 - see their quote requests, approve repair quotes and pay quotes online
 - keep company details, shipping and billing addresses on file, and upload a tax-exemption certificate (staff approve it)
 - get the quote and service forms filled in automatically; requests sent while signed in appear in their account
+- keep an **equipment list** (`/account/equipment`): each unit's nameplate details, where it is, its repair history, "Request a repair" (which fills in the service form and links the job to the unit) and, for motors, "Find a replacement" (a shop search by HP, speed, frame, enclosure and power). Staff see the list on the customer's admin page and the unit on the job.
 
 Sign-in links use Supabase's **Email OTP expiration** (Authentication → Providers → Email; default 1 hour, max 24 hours). Staff can always make a new link from the customer's page. "Forgot your password?" needs Resend and Turnstile configured. Creating, re-linking and removing logins needs `SUPABASE_SECRET_KEY`.
 
+**Cross-references:** a product's "Cross-references" (admin form, or the `Cross references` CSV column, separated by `;`) are the part numbers it replaces: other brands', the original manufacturer's. The shop search, part finder and admin product search match any of them, and the SKU and manufacturer part #, however they're punctuated (`EM-3615T` finds `EM3615T`). A result found by a cross-reference says "Replaces …", and the product page lists them.
+
+**Google Shopping:** `/feeds/google.xml` is a Merchant Center product feed. It lists products only while the store is open, and only those a customer can buy online at the listed price: priced, no core charge, shipped by parcel with a weight inside a shipping band, and with one of Morse's own photos (stand-ins don't count). Product pages also carry the shipping price in their structured data.
+
 **CSV import rules:** rows match existing products by SKU (a new SKU creates a product); only the columns present in the file change; new products need a name and category. Common header names (`Part #`, `Horsepower`, `Qty on hand`, …) are recognised, and values like `$1,299`, `7½`, `TEFC` and `3 phase` are understood.
 
-Phase 2 is in progress: the online store (step 1), core charges (step 2), Net-30 terms (step 3) and payable quotes with online repair approval (step 4) are built; step 5 (Merchant Center feed, live parcel rates, equipment lists, cross-reference search) is next. See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
+Phase 2: the online store (step 1), core charges (step 2), Net-30 terms (step 3), payable quotes with online repair approval (step 4), and the Merchant Center feed, cross-reference search and equipment lists (step 5) are built. Live UPS/FedEx rates and an accounting sync wait on Morse's choices (see the launch checklist). See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
 
 ## Getting started
 

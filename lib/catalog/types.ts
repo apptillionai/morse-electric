@@ -32,6 +32,8 @@ export interface ProductSummary {
   id: string;
   sku: string;
   mfrPartNumber: string | null;
+  /** Other part numbers this replaces: competitors', the original manufacturer's. */
+  crossReferences: string[];
   slug: string;
   name: string;
   categorySlug: string;

@@ -62,6 +62,15 @@ export function ProductForm({
           {brands.map((b) => <option key={b} value={b} />)}
         </datalist>
         <TextField label="Manufacturer part #" name="mfr_part_number" defaultValue={v("mfr_part_number")} error={e("mfr_part_number")} />
+        <TextAreaField
+          label="Cross-references"
+          name="cross_references"
+          rows={3}
+          defaultValue={v("cross_references")}
+          error={e("cross_references")}
+          hint="Part numbers this replaces (other brands, the original maker), one per line. Customers can search by any of them."
+          className="sm:col-span-2 lg:col-span-3"
+        />
         <SelectField
           label="Condition"
           name="condition"

@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Enclosure, PowerSupply, ProductCondition, ShipClass } from "@/lib/catalog/types";
 import type { CatalogRefs, ExistingProduct, ImportPlan, ProductValues } from "./csv-import";
+import { partKey } from "@/lib/catalog/filters";
 import { slugify, type ProductStatus } from "./product-fields";
 
 /**
@@ -17,6 +18,7 @@ interface ProductRow {
   name: string;
   description: string | null;
   mfr_part_number: string | null;
+  cross_references: string[] | null;
   family_key: string | null;
   condition: ProductCondition;
   price_cents: number | null;
@@ -40,7 +42,7 @@ interface ProductRow {
 }
 
 const PRODUCT_SELECT =
-  "id, sku, slug, name, description, mfr_part_number, family_key, condition, price_cents, core_charge_cents, ship_class, weight_lb, hp, rpm, frame, enclosure, power, voltage, specs, featured, status, in_stock, updated_at, category:categories(slug, name), brand:brands(name), inventory(qty_on_hand)";
+  "id, sku, slug, name, description, mfr_part_number, cross_references, family_key, condition, price_cents, core_charge_cents, ship_class, weight_lb, hp, rpm, frame, enclosure, power, voltage, specs, featured, status, in_stock, updated_at, category:categories(slug, name), brand:brands(name), inventory(qty_on_hand)";
 
 const num = (v: number | string | null) => (v === null ? null : Number(v));
 
@@ -56,6 +58,7 @@ function toValues(row: ProductRow): ProductValues {
     category: row.category?.slug ?? "",
     brand: row.brand?.name ?? null,
     mfr_part_number: row.mfr_part_number,
+    cross_references: row.cross_references ?? [],
     family_key: row.family_key,
     description: row.description,
     condition: row.condition,
@@ -132,7 +135,8 @@ export async function listProducts(supabase: SupabaseClient, query: ProductListQ
   const term = query.q?.replace(/[,()%*_\\"'.:]/g, " ").trim();
   if (term) {
     for (const t of term.split(/\s+/).slice(0, 4)) {
-      request = request.or(`sku.ilike.*${t}*,name.ilike.*${t}*,mfr_part_number.ilike.*${t}*`);
+      const key = partKey(t);
+      request = request.or(`sku.ilike.*${t}*,name.ilike.*${t}*,mfr_part_number.ilike.*${t}*${key ? `,part_keys.ilike.*${key}*` : ""}`);
     }
   }
   const from = (query.page - 1) * ADMIN_PAGE_SIZE;

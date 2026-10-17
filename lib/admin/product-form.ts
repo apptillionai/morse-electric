@@ -1,9 +1,11 @@
 import type { ProductValues } from "./csv-import";
 import {
+  formatCrossRefs,
   formatMoney,
   formatSpecs,
   parseBool,
   parseCondition,
+  parseCrossRefs,
   parseEnclosure,
   parseMoney,
   parseNumber,
@@ -16,7 +18,7 @@ import {
 } from "./product-fields";
 
 export const PRODUCT_FORM_FIELDS = [
-  "sku", "name", "slug", "category", "brand", "mfr_part_number", "condition", "status", "featured", "price",
+  "sku", "name", "slug", "category", "brand", "mfr_part_number", "cross_references", "condition", "status", "featured", "price",
   "core_charge", "qty", "hp", "rpm", "frame", "enclosure", "power", "voltage", "ship_class", "weight_lb",
   "family_key", "description", "specs",
 ] as const;
@@ -60,6 +62,7 @@ export function parseProductForm(form: Record<ProductFormField, string>, categor
     category,
     brand: take("brand", optional(form.brand, 80)),
     mfr_part_number: take("mfr_part_number", optional(form.mfr_part_number, 80)),
+    cross_references: take("cross_references", parseCrossRefs(form.cross_references)),
     family_key: (() => {
       const v = take("family_key", optional(form.family_key, 80));
       return v ? slugify(v) : null;
@@ -95,6 +98,7 @@ export function productToForm(sku: string, v: ProductValues): Record<ProductForm
     category: v.category,
     brand: v.brand ?? "",
     mfr_part_number: v.mfr_part_number ?? "",
+    cross_references: formatCrossRefs(v.cross_references),
     condition: v.condition,
     status: v.status,
     featured: v.featured ? "on" : "",

@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { ProductSummary } from "@/lib/catalog/types";
 import { ConditionBadge, PriceLabel, ProductPhoto, StockStatus, specLine } from "./product-bits";
 
-export function ProductCard({ product }: { product: ProductSummary }) {
+/** `matched`: the cross-reference a search found this by, shown as "Replaces …". */
+export function ProductCard({ product, matched = null }: { product: ProductSummary; matched?: string | null }) {
   const href = `/products/${product.slug}`;
   return (
     <article className="relative flex flex-col overflow-hidden rounded-md border border-edge bg-surface">
@@ -21,6 +22,11 @@ export function ProductCard({ product }: { product: ProductSummary }) {
           </Link>
         </h3>
         <span className="font-mono text-[13px] leading-normal text-fg-muted">{specLine(product)}</span>
+        {matched && (
+          <span className="text-[13px] font-semibold">
+            Replaces <span className="font-mono">{matched}</span>
+          </span>
+        )}
         <StockStatus inStock={product.inStock} />
         <div className="mt-auto flex items-end justify-between gap-2.5 pt-2">
           <PriceLabel cents={product.priceCents} />

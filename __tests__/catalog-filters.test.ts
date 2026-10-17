@@ -3,7 +3,9 @@ import {
   EMPTY_FILTERS,
   filterProducts,
   filtersToSearchParams,
+  matchedCrossReference,
   paginate,
+  partKeys,
   parseFilters,
   searchTerms,
   shopHref,
@@ -17,6 +19,7 @@ function product(overrides: Partial<ProductSummary>): ProductSummary {
     id: overrides.sku ?? "id",
     sku: "SKU",
     mfrPartNumber: null,
+    crossReferences: [],
     slug: "slug",
     name: "Motor",
     categorySlug: "electric-motors",
@@ -189,6 +192,20 @@ describe("filterProducts", () => {
     expect(skus({ q: "nothing" })).toEqual([]);
   });
 
+  it("finds part numbers however they're punctuated, including cross-references", () => {
+    const parts = [
+      product({ sku: "EM-5HP", mfrPartNumber: "EM3615T", crossReferences: ["WEG 00518ET3E184T", "Marathon U206"] }),
+      product({ sku: "OTHER", name: "Other motor" }),
+    ];
+    const found = (q: string) => filterProducts(parts, filters({ q })).map((p) => p.sku);
+    expect(found("EM-3615T")).toEqual(["EM-5HP"]);
+    expect(found("em 3615t")).toEqual(["EM-5HP"]);
+    expect(found("00518et3e184t")).toEqual(["EM-5HP"]);
+    expect(found("U-206")).toEqual(["EM-5HP"]);
+    expect(found("em5hp")).toEqual(["EM-5HP"]);
+    expect(found("u-999")).toEqual([]);
+  });
+
   it("sorts featured and in-stock first by default", () => {
     expect(skus({})[0]).toBe("A");
     expect(skus({}).at(-1)).toBe("B");
@@ -202,6 +219,21 @@ describe("searchTerms", () => {
     expect(searchTerms("184T,(or)% 5*_hp")).toEqual(["184t", "or", "5", "hp"]);
     expect(searchTerms("   ")).toEqual([]);
     expect(searchTerms(null)).toEqual([]);
+  });
+});
+
+describe("part keys", () => {
+  const p = product({ sku: "EM-5HP", mfrPartNumber: "EM3615T", crossReferences: ["WEG 00518ET3E184T", "Leeson 121.017"] });
+
+  it("keeps only lowercase letters, digits and spaces, like the database trigger", () => {
+    expect(partKeys(p)).toBe("em5hp em3615t weg 00518et3e184t leeson 121017");
+  });
+
+  it("names the cross-reference a search matched", () => {
+    expect(matchedCrossReference(p, "121-017")).toBe("Leeson 121.017");
+    expect(matchedCrossReference(p, "EM3615T")).toBeNull();
+    expect(matchedCrossReference(p, "ab")).toBeNull();
+    expect(matchedCrossReference(p, null)).toBeNull();
   });
 });
 

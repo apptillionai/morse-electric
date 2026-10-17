@@ -2,14 +2,15 @@
 
 Everything that needs a person (you or Morse) rather than code. Updated with each Phase 2 step. ✅ means done.
 
-Last updated: Phase 2, step 4 (payable quotes and online repair approval).
+Last updated: Phase 2, step 5 (Merchant Center feed, cross-reference search, equipment lists).
 
 ## 1. Right now
 
 - [x] ✅ [PR #8](https://github.com/apptillionai/morse-electric/pull/8) (Phase 2 plan, steps 0–3) merged and live.
 - [x] ✅ Request-photos, orders, core-returns and Net-30 migrations applied to the live database.
-- [ ] Review the step 4 PR (payable quotes and online repair approval) and merge it.
-- [x] ✅ Quotes migration applied to the live database.
+- [x] ✅ [PR #9](https://github.com/apptillionai/morse-electric/pull/9) (step 4, payable quotes) merged and live, with its migration.
+- [ ] Review the step 5 PR (Merchant Center feed, cross-reference search, equipment lists) and merge it.
+- [x] ✅ Cross-references and equipment migration applied to the live database.
 - [ ] After the merge, send one quote request with a photo on the live site and open it in Admin → Quotes to check the photo shows. (Previews can't save requests: they don't have `SUPABASE_SECRET_KEY`.)
 
 ## 2. Vercel environment variables
@@ -50,7 +51,8 @@ Still to add (Project → Settings → Environment Variables):
 **Catalog**
 - [ ] Real parts list: prices, stock and **weights**. Items without a weight can't be shipped, only picked up.
 - [ ] Core charges on remanufactured and exchange items. Exchange items can't be sold online until they have one.
-- [ ] Product photography (stand-in photos fill the gap until then).
+- [ ] Product photography (stand-in photos fill the gap until then). Products need one of Morse's own photos to appear on Google Shopping.
+- [ ] Cross-references for the parts list: the other brands' and original manufacturers' part numbers each product replaces (a `Cross references` column in the CSV import, separated by `;`).
 - [ ] Which brands Morse is authorized to sell.
 
 **Store settings** (Admin → Settings)
@@ -72,12 +74,20 @@ Still to add (Project → Settings → Environment Variables):
 **Net-30**
 - [ ] Who qualifies for Net-30 terms, and a typical credit limit. Staff set both per customer in Admin → Customers.
 - [ ] Wording for Net-30 in the terms of sale: due date, late fees and holding orders when past due. The draft already has a `[1.5]%` late fee to confirm.
-- [ ] Which accounting software Morse uses (QuickBooks?). Invoices live in Stripe for now.
 
 ## 5. Optional hardening (Supabase advisor)
 
 - [ ] Authentication → Providers → Email: set the email OTP expiry to an hour or less. Customer sign-in links then last an hour.
 - [ ] Authentication → Settings: turn on leaked-password protection.
+
+**Google Shopping** (after the store is live)
+- [ ] Create a Google Merchant Center account for morseelectricmotor.com, verify and claim the site, and turn on free listings.
+- [ ] Products → Feeds: add a scheduled fetch of `https://morseelectricmotor.com/feeds/google.xml` (daily). It's empty until the store is switched on.
+- [ ] Merchant Center → Shipping and returns: set the return policy (window, who pays return shipping, restocking fee) to match `/policies/returns`. Shipping prices come from the feed.
+
+**Still to choose (Phase 2, step 5 leftovers)**
+- [ ] Live UPS/FedEx rates at checkout instead of weight bands: needs a UPS or FedEx account with API access, or a service such as Shippo or EasyPost (an account and API key). Tell Claude which, and it can be built.
+- [ ] An accounting sync: which software Morse uses (QuickBooks Online, Xero, …). Stripe already holds every payment and invoice; a sync is only worth building if Morse wants them in the books automatically.
 
 ## 6. Go live
 

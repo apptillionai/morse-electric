@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { nameplateLine } from "@/lib/customers/equipment";
+import { listEquipment } from "@/lib/customers/equipment-store";
 import { notFound } from "next/navigation";
 import { removeCustomerAction, setTaxExemptAction } from "@/app/admin/actions";
 import { PageHeader } from "@/components/admin/admin-shell";
@@ -25,7 +27,7 @@ export default async function CustomerPage(props: PageProps<"/admin/customers/[i
   const { id } = await props.params;
   if (!UUID.test(id)) notFound();
   const supabase = await staffClient();
-  const [found, signIn] = await Promise.all([getCustomerDetail(supabase, id), getSignInInfo(id)]);
+  const [found, signIn, units] = await Promise.all([getCustomerDetail(supabase, id), getSignInInfo(id), listEquipment(supabase, id)]);
   if (!found) notFound();
   const { customer: c, quotes, service, openBalanceCents } = found;
   const cert = c.tax_cert_path
@@ -74,6 +76,38 @@ export default async function CustomerPage(props: PageProps<"/admin/customers/[i
                       {EQUIPMENT_TYPES[j.equipment_type]} · {formatDate(j.created_at)}
                     </span>
                     <StatusBadge status={j.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <section aria-labelledby="c-equipment" className="flex flex-col gap-2">
+            <h2 id="c-equipment" className="font-semibold">Equipment ({units.length})</h2>
+            {units.length === 0 ? <p className="text-sm text-fg-muted">The customer hasn’t added any units.</p> : (
+              <ul className="flex flex-col divide-y divide-edge-soft rounded-md border border-edge bg-surface">
+                {units.map((u) => (
+                  <li key={u.id} className="flex flex-col gap-0.5 px-4 py-3 text-sm">
+                    <span>
+                      <strong>{u.label}</strong> · {EQUIPMENT_TYPES[u.equipment_type]}
+                      {u.location && <span className="text-fg-muted"> · {u.location}</span>}
+                    </span>
+                    {nameplateLine(u) && <span className="font-mono text-[13px] text-fg-muted">{nameplateLine(u)}</span>}
+                    {(u.model || u.serial) && (
+                      <span className="text-fg-muted">
+                        {[u.model && `Model ${u.model}`, u.serial && `S/N ${u.serial}`].filter(Boolean).join(" · ")}
+                      </span>
+                    )}
+                    {u.jobs.length > 0 && (
+                      <span>
+                        Repairs:{" "}
+                        {u.jobs.map((j, i) => (
+                          <span key={j.id}>
+                            {i > 0 && ", "}
+                            <Link href={`/admin/service/${j.id}`} className="font-mono">{j.reference}</Link>
+                          </span>
+                        ))}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

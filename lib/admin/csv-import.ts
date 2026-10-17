@@ -1,10 +1,12 @@
 import { parse } from "csv-parse/sync";
 import type { Enclosure, PowerSupply, ProductCondition, ShipClass, SpecLine } from "@/lib/catalog/types";
 import {
+  formatCrossRefs,
   formatMoney,
   formatSpecs,
   parseBool,
   parseCondition,
+  parseCrossRefs,
   parseEnclosure,
   parseMoney,
   parseNumber,
@@ -39,6 +41,7 @@ export const COLUMNS = {
   featured: ["featured"],
   brand: ["brand", "manufacturer", "make"],
   mfr_part_number: ["mfr part number", "manufacturer part number", "mfr part #", "mpn"],
+  cross_references: ["cross references", "cross reference", "cross refs", "cross ref", "replaces", "interchange"],
   hp: ["hp", "horsepower"],
   rpm: ["rpm", "speed"],
   frame: ["frame"],
@@ -57,8 +60,8 @@ export type Column = keyof typeof COLUMNS;
 /** Column order for the template and the catalog export. */
 export const EXPORT_COLUMNS: Column[] = [
   "sku", "name", "category", "condition", "price", "core_charge", "qty", "status", "featured", "brand",
-  "mfr_part_number", "hp", "rpm", "frame", "enclosure", "power", "voltage", "ship_class", "weight_lb",
-  "description", "specs", "family_key", "slug",
+  "mfr_part_number", "cross_references", "hp", "rpm", "frame", "enclosure", "power", "voltage", "ship_class",
+  "weight_lb", "description", "specs", "family_key", "slug",
 ];
 
 const headerKey = (h: string) => h.toLowerCase().replace(/[^a-z0-9#]+/g, " ").trim();
@@ -73,6 +76,8 @@ export interface ProductValues {
   category: string;
   brand: string | null;
   mfr_part_number: string | null;
+  /** Other part numbers this replaces. */
+  cross_references: string[];
   family_key: string | null;
   description: string | null;
   condition: ProductCondition;
@@ -130,6 +135,7 @@ const FIELD_PARSERS: Record<Exclude<Column, "sku">, [FieldName, (raw: string) =>
   featured: ["featured", (raw) => parseBool(raw, "Featured")],
   brand: ["brand", text(80)],
   mfr_part_number: ["mfr_part_number", text(80)],
+  cross_references: ["cross_references", parseCrossRefs],
   hp: ["hp", (raw) => parseNumber(raw, "HP")],
   rpm: ["rpm", (raw) => parseNumber(raw, "RPM", { integer: true })],
   frame: ["frame", (raw) => text(20)(raw.toUpperCase())],
@@ -246,6 +252,7 @@ export interface ImportPlan {
 const DEFAULTS: Omit<ProductValues, "name" | "slug" | "category"> = {
   brand: null,
   mfr_part_number: null,
+  cross_references: [],
   family_key: null,
   description: null,
   condition: "new",
@@ -394,6 +401,7 @@ export function exportRow(sku: string, v: ProductValues): string[] {
     featured: v.featured ? "yes" : "no",
     brand: v.brand ?? "",
     mfr_part_number: v.mfr_part_number ?? "",
+    cross_references: formatCrossRefs(v.cross_references, "; "),
     hp: n(v.hp),
     rpm: n(v.rpm),
     frame: v.frame ?? "",
@@ -415,7 +423,7 @@ export const EXPORT_HEADER = EXPORT_COLUMNS.map((c) => COLUMNS[c][0]);
 const TEMPLATE_EXAMPLES: Partial<Record<Column, string>>[] = [
   {
     sku: "EM-5HP-184T-N", name: "5 HP General Purpose Motor, 184T", category: "electric-motors", condition: "new",
-    price: "689.00", qty: "4", status: "active", brand: "Baldor", mfr_part_number: "EM3615T", hp: "5", rpm: "1750",
+    price: "689.00", qty: "4", status: "active", brand: "Baldor", mfr_part_number: "EM3615T", cross_references: "WEG 00518ET3E184T; Marathon U206", hp: "5", rpm: "1750",
     frame: "184T", enclosure: "TEFC", power: "3 phase", voltage: "208-230/460", ship_class: "parcel", weight_lb: "86",
     description: "Premium efficiency, rolled steel frame.", specs: "Service factor: 1.15; Insulation: Class F",
     family_key: "em-5hp-184t",
