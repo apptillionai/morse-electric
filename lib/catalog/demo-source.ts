@@ -32,6 +32,7 @@ function toDetail(p: SeedProduct): ProductDetail {
     specs: p.specs,
     images: [],
     documents: [],
+    priceBreaks: [],
     variants: [],
   };
 }

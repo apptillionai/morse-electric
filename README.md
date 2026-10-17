@@ -95,9 +95,11 @@ Sign-in links use Supabase's **Email OTP expiration** (Authentication → Provid
 
 **Google Shopping:** `/feeds/google.xml` is a Merchant Center product feed. It lists products only while the store is open, and only those a customer can buy online at the listed price: priced, no core charge, shipped by parcel with a weight inside a shipping band, and with one of Morse's own photos (stand-ins don't count). Product pages also carry the shipping price in their structured data.
 
+**Contractor and volume pricing:** at **/admin/pricing** staff set up price tiers (a name and a discount off list prices, e.g. Contractor 10%) and put a customer on one from the customer's admin page. Products can also have quantity prices ("Quantity prices" on the product form, or a `Quantity prices` CSV column such as `5+ 650.00; 10+ 620.00`), which everyone gets. A customer always pays the lowest of the list price, the quantity price their order reaches and their tier price; discounts never stack, and core charges and shipping are never discounted. Product pages show the quantity prices and, for a signed-in tier customer, their own price; the cart explains each discount and the next quantity price; card checkout, Net-30 invoices and quotes started from a catalog part all use the same price. Google Shopping gets the list price.
+
 **CSV import rules:** rows match existing products by SKU (a new SKU creates a product); only the columns present in the file change; new products need a name and category. Common header names (`Part #`, `Horsepower`, `Qty on hand`, …) are recognised, and values like `$1,299`, `7½`, `TEFC` and `3 phase` are understood.
 
-Phase 2: the online store (step 1), core charges (step 2), Net-30 terms (step 3), payable quotes with online repair approval (step 4), and the Merchant Center feed, cross-reference search and equipment lists (step 5) are built. Live UPS/FedEx rates and an accounting sync wait on Morse's choices (see the launch checklist). See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
+Phase 2: the online store (step 1), core charges (step 2), Net-30 terms (step 3), payable quotes with online repair approval (step 4), the Merchant Center feed, cross-reference search and equipment lists (step 5), and contractor and volume pricing (step 6) are built. Live UPS/FedEx rates and an accounting sync wait on Morse's choices (see the launch checklist). See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
 
 ## Getting started
 

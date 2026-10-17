@@ -6,8 +6,8 @@ import { getSiteSettings } from "@/lib/site-settings";
 import { SITE } from "@/lib/site";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CartLine } from "./cart";
-import { priceCart, shippingCents, type Fulfillment, type PricedCart } from "./pricing";
-import { getStripe, loadBuyableProducts } from "./store";
+import { priceCart, priceNote, shippingCents, type CustomerPricing, type Fulfillment, type PricedCart } from "./pricing";
+import { customerPricing, getStripe, loadBuyableProducts } from "./store";
 
 /** Stripe needs at least 30 minutes; stock stays reserved this long. */
 export const CHECKOUT_MINUTES = 31;
@@ -122,6 +122,8 @@ type OpenedOrder =
       ok: true;
       order: { id: string; reference: string };
       cart: PricedCart;
+      /** The customer's tier, which the cart was priced at. */
+      pricing: CustomerPricing | null;
       shipping: number;
       returnDays: number;
       /** Unix seconds when the stock reservation lapses. */
@@ -146,9 +148,12 @@ export async function openOrder(
     ({ error }) => error && console.error("[checkout] release stale:", error.message),
   );
 
-  const { shippingRates, coreReturnDays: returnDays } = await getSiteSettings();
-  const products = await loadBuyableProducts(input.cart.map((l) => l.productId));
-  const cart = priceCart(input.cart, products, shippingRates);
+  const [{ shippingRates, coreReturnDays: returnDays }, products, pricing] = await Promise.all([
+    getSiteSettings(),
+    loadBuyableProducts(input.cart.map((l) => l.productId)),
+    customerPricing(input.customer?.id),
+  ]);
+  const cart = priceCart(input.cart, products, shippingRates, pricing);
   if (cart.adjustments.length) return { ok: false, error: "changed", cleaned: cart.cleaned };
   if (!cart.lines.length) return { ok: false, error: "empty" };
   const shipping = shippingCents(cart, input.fulfillment);
@@ -187,7 +192,7 @@ export async function openOrder(
       sku: l.product.sku,
       name: l.product.name,
       condition: l.product.condition,
-      unit_price_cents: l.product.priceCents,
+      unit_price_cents: l.unit.unitCents,
       core_charge_cents: Math.max(0, l.product.coreChargeCents ?? 0),
       quantity: l.quantity,
       weight_lb: l.product.weightLb,
@@ -206,7 +211,7 @@ export async function openOrder(
     await cancel();
     return { ok: false, error: reserveError ? "unavailable" : "sold_out", cleaned: input.cart };
   }
-  return { ok: true, order, cart, shipping, returnDays, expiresAt, cancel };
+  return { ok: true, order, cart, pricing, shipping, returnDays, expiresAt, cancel };
 }
 
 /** One thing to charge for. Stripe Checkout sessions and invoices are built from these. */
@@ -222,12 +227,12 @@ export interface ChargeLine {
 }
 
 /** The cart's items, each followed by its core charge when it has one. */
-export function cartChargeLines(cart: PricedCart, returnDays: number): ChargeLine[] {
+export function cartChargeLines(cart: PricedCart, returnDays: number, pricing: CustomerPricing | null = null): ChargeLine[] {
   return cart.lines.flatMap((l) => [
     {
       name: `${l.product.name} (${CONDITION_LABELS[l.product.condition]})`,
-      description: `Part # ${l.product.sku}`,
-      unitAmount: l.product.priceCents ?? 0,
+      description: [`Part # ${l.product.sku}`, priceNote(l.unit, l.product, l.quantity, pricing)].filter(Boolean).join(" · "),
+      unitAmount: l.unit.unitCents,
       quantity: l.quantity,
       core: false,
       sku: l.product.sku,
@@ -336,12 +341,12 @@ export async function createCheckout(input: {
   const supabase = createAdminClient();
   const opened = await openOrder(supabase, input);
   if (!opened.ok) return opened;
-  const { order, cart, shipping, returnDays, expiresAt, cancel } = opened;
+  const { order, cart, pricing, shipping, returnDays, expiresAt, cancel } = opened;
 
   try {
     const url = await startCheckoutSession(stripe, supabase, {
       order,
-      lines: cartChargeLines(cart, returnDays),
+      lines: cartChargeLines(cart, returnDays, pricing),
       shipping,
       fulfillment: input.fulfillment,
       customer: input.customer,

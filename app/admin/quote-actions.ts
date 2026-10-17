@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/admin/auth";
 import { parseQuoteForm } from "@/lib/admin/quote-form";
 import { siteOrigin } from "@/lib/customers/origin";
+import { parsePriceBreaks, tierOf, unitPriceFor } from "@/lib/orders/pricing";
 import { sendQuoteEmail } from "@/lib/quotes/email";
 import { addDays, customerStep, shopToday } from "@/lib/quotes/logic";
 import { hashQuoteToken, loadQuote, newQuoteToken, quoteLink, quoteState, type Quote } from "@/lib/quotes/store";
@@ -78,15 +79,29 @@ export async function createQuoteAction(kind: "parts" | "repair", requestId: str
 
   // A part from the catalog with a price starts as the first line.
   if (r.product_id) {
-    const { data: product } = await supabase.from("products").select("name, sku, price_cents, core_charge_cents").eq("id", r.product_id).maybeSingle();
-    if (product?.price_cents !== null && product?.price_cents !== undefined) {
+    const [{ data: product }, { data: customer }] = await Promise.all([
+      supabase.from("products").select("name, sku, price_cents, price_breaks, core_charge_cents").eq("id", r.product_id).maybeSingle(),
+      r.customer_id
+        ? supabase.from("customers").select("price_tier:price_tiers(name, discount_percent)").eq("user_id", r.customer_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    const quantity = Math.min(999, Math.max(1, r.quantity ?? 1));
+    // At the customer's own price (their tier or the quantity price), which staff can still change.
+    const unit = product
+      ? unitPriceFor(
+          { priceCents: product.price_cents, priceBreaks: parsePriceBreaks(product.price_breaks) },
+          quantity,
+          tierOf(customer?.price_tier),
+        )
+      : null;
+    if (product && unit) {
       await supabase.from("quote_lines").insert({
         quote_id: quote.id,
         product_id: r.product_id,
         sku: product.sku,
         description: product.name,
-        quantity: Math.min(999, Math.max(1, r.quantity ?? 1)),
-        unit_price_cents: product.price_cents,
+        quantity,
+        unit_price_cents: unit.unitCents,
         core_charge_cents: product.core_charge_cents ?? 0,
       });
     }

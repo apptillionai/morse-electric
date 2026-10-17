@@ -2,15 +2,16 @@
 
 Everything that needs a person (you or Morse) rather than code. Updated with each Phase 2 step. ✅ means done.
 
-Last updated: Phase 2, step 5 (Merchant Center feed, cross-reference search, equipment lists).
+Last updated: Phase 2, step 6 (contractor and volume pricing).
 
 ## 1. Right now
 
 - [x] ✅ [PR #8](https://github.com/apptillionai/morse-electric/pull/8) (Phase 2 plan, steps 0–3) merged and live.
 - [x] ✅ Request-photos, orders, core-returns and Net-30 migrations applied to the live database.
 - [x] ✅ [PR #9](https://github.com/apptillionai/morse-electric/pull/9) (step 4, payable quotes) merged and live, with its migration.
-- [ ] Review the step 5 PR (Merchant Center feed, cross-reference search, equipment lists) and merge it.
-- [x] ✅ Cross-references and equipment migration applied to the live database.
+- [x] ✅ [PR #10](https://github.com/apptillionai/morse-electric/pull/10) (step 5: Merchant Center feed, cross-reference search, equipment lists) merged and live, with its migration.
+- [ ] Apply the contractor and volume pricing migration to the live database (before the step 6 preview can build).
+- [ ] Review the step 6 PR (contractor and volume pricing) and merge it.
 - [ ] After the merge, send one quote request with a photo on the live site and open it in Admin → Quotes to check the photo shows. (Previews can't save requests: they don't have `SUPABASE_SECRET_KEY`.)
 
 ## 2. Vercel environment variables
@@ -54,6 +55,11 @@ Still to add (Project → Settings → Environment Variables):
 - [ ] Product photography (stand-in photos fill the gap until then). Products need one of Morse's own photos to appear on Google Shopping.
 - [ ] Cross-references for the parts list: the other brands' and original manufacturers' part numbers each product replaces (a `Cross references` column in the CSV import, separated by `;`).
 - [ ] Which brands Morse is authorized to sell.
+- [ ] Quantity prices, if Morse offers any (e.g. 5 or more at $650 each): the product form's "Quantity prices" box, or a `Quantity prices` CSV column like `5+ 650.00; 10+ 620.00`.
+
+**Contractor pricing** (Admin → Pricing)
+- [ ] The price tiers Morse wants (e.g. Contractor 10%, OEM 15%) and which customers go on each (set on the customer's admin page). A customer pays the lower of their tier price and any quantity price; the two never stack.
+- [ ] Whether any products should never be discounted (thin-margin items). Today a tier applies to every product; tell Claude if some need excluding.
 
 **Store settings** (Admin → Settings)
 - [ ] Shipping bands: price by order weight, e.g. up to 10 lb $15, up to 50 lb $45, up to 100 lb $95.
@@ -85,7 +91,7 @@ Still to add (Project → Settings → Environment Variables):
 - [ ] Products → Feeds: add a scheduled fetch of `https://morseelectricmotor.com/feeds/google.xml` (daily). It's empty until the store is switched on.
 - [ ] Merchant Center → Shipping and returns: set the return policy (window, who pays return shipping, restocking fee) to match `/policies/returns`. Shipping prices come from the feed.
 
-**Still to choose (Phase 2, step 5 leftovers)**
+**Still to choose (left over from step 5)**
 - [ ] Live UPS/FedEx rates at checkout instead of weight bands: needs a UPS or FedEx account with API access, or a service such as Shippo or EasyPost (an account and API key). Tell Claude which, and it can be built.
 - [ ] An accounting sync: which software Morse uses (QuickBooks Online, Xero, …). Stripe already holds every payment and invoice; a sync is only worth building if Morse wants them in the books automatically.
 

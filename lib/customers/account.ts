@@ -33,6 +33,8 @@ export interface CustomerProfile {
   /** Set by staff: "net30" customers can charge orders to their account. */
   terms: "prepay" | "net30";
   credit_limit_cents: number;
+  /** Set by staff: the customer's price tier, or null for list prices. */
+  price_tier_id: string | null;
   created_at: string;
 }
 
