@@ -8,13 +8,13 @@ export const QUOTE_STATUSES = ["new", "quoted", "won", "lost", "spam"] as const;
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
 
 export const SERVICE_STATUSES = [
-  "received", "teardown", "quoted", "approved", "in_repair", "testing", "ready", "delivered", "closed", "spam",
+  "received", "teardown", "quoted", "declined", "approved", "in_repair", "testing", "ready", "delivered", "closed", "spam",
 ] as const;
 export type ServiceStatus = (typeof SERVICE_STATUSES)[number];
 
 /** Statuses that still need someone's attention. */
 export const OPEN_QUOTE: QuoteStatus[] = ["new"];
-export const OPEN_SERVICE: ServiceStatus[] = ["received", "teardown", "quoted", "approved", "in_repair", "testing", "ready"];
+export const OPEN_SERVICE: ServiceStatus[] = ["received", "teardown", "quoted", "declined", "approved", "in_repair", "testing", "ready"];
 
 export const STATUS_LABELS: Record<string, string> = {
   new: "New",
@@ -25,6 +25,7 @@ export const STATUS_LABELS: Record<string, string> = {
   received: "Received",
   teardown: "Teardown",
   approved: "Approved",
+  declined: "Quote declined",
   in_repair: "In repair",
   testing: "Testing",
   ready: "Ready",

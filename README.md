@@ -34,6 +34,8 @@ Customers can buy in-stock items online and pay by card (including Apple Pay and
 | `/admin/orders` | Orders to fulfil: mark as being prepared, shipped (with tracking) or ready for pickup, then completed; cancel or refund in full; staff notes |
 | `/account/request` | "Request a business account": a public form staff review at /admin/customers, with an option to apply for Net-30 terms |
 | `/admin/cores` | Core returns: what customers owe back, overdue ones first; mark received, then accept and refund the core charge, or reject with a reason; extend a due date |
+| `/quotes/<link>` | A priced quote, opened from the emailed link (no sign-in needed): approve or decline a repair, or pay (card, ACH or Net-30) |
+| `/account/quotes/<id>` | The same quote from the customer's account |
 
 **What can be bought online:** active products with a price, in stock, that ship by parcel or are pickup-only. Freight (LTL) items stay "Request a quote", and so do exchange units until they have a core charge set.
 
@@ -44,6 +46,8 @@ Customers can buy in-stock items online and pay by card (including Apple Pay and
 **Stock:** starting checkout reserves the stock for 31 minutes (`inventory.qty_reserved`, so the item can show as out of stock to others). Payment takes it off the shelf, and an abandoned checkout releases it. ACH orders hold their stock while the bank payment clears; a failed payment puts it back. All of this happens in database functions (`supabase/migrations/20261016170815_orders.sql`), so a repeated Stripe event never moves stock twice.
 
 **Net-30 terms:** staff put a customer on Net-30 with a credit limit on the customer's admin page. That customer then sees "Charge to my account" at checkout, with their available credit. The order skips Stripe Checkout: the database checks the limit (unpaid invoices plus this order, with the account locked), places the order as "Charged to account" and takes the stock. Then a Stripe invoice is created, finalized and emailed, due in 30 days, with Stripe Tax worked out from the address on the customer's profile. The order is ready to fulfil straight away. Stripe's `invoice.paid`, `invoice.voided` and `invoice.marked_uncollectible` events keep the invoice status on the order up to date. Cancelling an order voids its invoice (or credits and refunds it if paid), and a returned core is taken off the invoice, or credited to the next one. New customers can ask for an account (and terms) at /account/request; staff see the requests on /admin/customers and invite with one click.
+
+**Payable quotes and repairs:** on a quote request or service job in the admin, staff write a quote: lines (parts, labour, core charges), a shipping price (blank means pickup only), how long it's valid and a message. "Save and send" emails the customer a private link (only a hash of it is stored; "Resend" makes a new one, and the old stops working). To change a sent quote, "Edit" takes it back to draft. On a parts quote, the customer orders by paying: card or ACH through Stripe Checkout, or on account if they're signed in with Net-30 terms. On a repair quote, they approve or decline the work first; once the job is Ready, staff press "Email the payment link" (or the customer sees "Pay online" in their account). Paying creates an ordinary order (fulfilled at /admin/orders like any other) and marks the quote paid and the request won. Quote orders don't change stock, because quoted items are usually special orders. Declining marks the request lost or the job "Quote declined", with the customer's reason. Paying a quote works whenever Stripe is set up, even with the store switched off.
 
 **Setting up Stripe:**
 1. Set `STRIPE_SECRET_KEY` in Vercel. Use a test key (`sk_test_…`) for previews and the live key for production.
@@ -63,7 +67,7 @@ Everything still to do before launch, for you and for Morse, is in [`docs/launch
 | `/admin/products` | Search and filter the catalog; add, edit, archive or delete products; photos; stock |
 | `/admin/import` | CSV import with a preview (new, updated, unchanged, problems by row) before anything is saved; template download |
 | `/admin/products/export` | The whole catalog as CSV, in the same format the importer reads |
-| `/admin/quotes`, `/admin/service` | Request inboxes with status and private staff notes |
+| `/admin/quotes`, `/admin/service` | Request inboxes with status and private staff notes; write, send and follow a quote on each request |
 | `/admin/customers` | Business account requests to invite or dismiss; invite customers, approve tax exemption, set Net-30 terms and credit limits, make new sign-in links, remove accounts |
 
 **Adding a staff member:** create the user in the Supabase dashboard (Authentication → Users → Add user), then run in the SQL editor:
@@ -80,7 +84,7 @@ Turn off public sign-ups (Authentication → Sign In / Providers) — staff acco
 Invite-only: staff create the account at **/admin/customers → Invite customer**. That creates the login, links any earlier requests sent from the same email, and gives a one-time link (emailed when Resend is set up, otherwise copy it and send it yourself). The customer opens it, chooses a password and can then:
 
 - follow repair jobs through Received → Inspection → Quote → Repair → Testing → Ready
-- see their quote requests
+- see their quote requests, approve repair quotes and pay quotes online
 - keep company details, shipping and billing addresses on file, and upload a tax-exemption certificate (staff approve it)
 - get the quote and service forms filled in automatically; requests sent while signed in appear in their account
 
@@ -88,7 +92,7 @@ Sign-in links use Supabase's **Email OTP expiration** (Authentication → Provid
 
 **CSV import rules:** rows match existing products by SKU (a new SKU creates a product); only the columns present in the file change; new products need a name and category. Common header names (`Part #`, `Horsepower`, `Qty on hand`, …) are recognised, and values like `$1,299`, `7½`, `TEFC` and `3 phase` are understood.
 
-Phase 2 is in progress: the online store (step 1), core charges (step 2) and Net-30 terms (step 3) are built; next come payable quotes and online repair approval. See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
+Phase 2 is in progress: the online store (step 1), core charges (step 2), Net-30 terms (step 3) and payable quotes with online repair approval (step 4) are built; step 5 (Merchant Center feed, live parcel rates, equipment lists, cross-reference search) is next. See [`docs/phase-2-plan.md`](docs/phase-2-plan.md).
 
 ## Getting started
 

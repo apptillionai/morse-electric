@@ -32,7 +32,7 @@ const p = (html: string) => `<p style="font:15px/1.5 sans-serif">${html}</p>`;
 export function orderSummary(order: OrderWithItems): { html: string; text: string } {
   const items = order.items.flatMap((i) => [
     {
-      label: `${i.quantity} × ${i.name} (${CONDITION_LABELS[i.condition]}), part # ${i.sku}`,
+      label: `${i.quantity} × ${i.name}${i.condition ? ` (${CONDITION_LABELS[i.condition]})` : ""}${i.sku ? `, part # ${i.sku}` : ""}`,
       amount: money(i.unit_price_cents * i.quantity),
     },
     ...(i.core_charge_cents > 0

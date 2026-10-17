@@ -5,6 +5,8 @@ import { RepairProgress } from "@/components/account/repair-progress";
 import { ButtonLink } from "@/components/ui/button";
 import { requireCustomer } from "@/lib/customers/account";
 import { listMyRequests } from "@/lib/customers/requests";
+import { customerStep } from "@/lib/quotes/logic";
+import { listMyQuotes, quoteState, type Quote } from "@/lib/quotes/store";
 import { QUOTE_STATUS_LABEL, SERVICE_STATUS_MESSAGE } from "@/lib/customers/status";
 import { EQUIPMENT_TYPES } from "@/lib/requests/schemas";
 import { createSessionClient } from "@/lib/supabase/server";
@@ -14,13 +16,27 @@ export const metadata = { title: "Requests & repairs" };
 const date = (iso: string) =>
   new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "America/New_York" }).format(new Date(iso));
 
+/** The quote a customer should see for a request: the live one, else the latest. */
+function quoteFor(quotes: Quote[], match: (q: Quote) => boolean): Quote | undefined {
+  const mine = quotes.filter(match);
+  return mine.find((q) => ["sent", "approved", "paid"].includes(q.status)) ?? mine[0];
+}
+
+const QUOTE_CALL: Record<string, string> = {
+  approve: "Review and approve the quote",
+  pay: "Pay online",
+  in_progress: "View the quote",
+  closed: "View the quote",
+};
+
 function Notice({ children }: { children: React.ReactNode }) {
   return <p role="status" className="rounded border-2 border-ok bg-surface px-4 py-3 text-sm font-medium text-ok">{children}</p>;
 }
 
 export default async function AccountPage(props: PageProps<"/account">) {
   const [{ id, customer }, sp] = await Promise.all([requireCustomer(), props.searchParams]);
-  const { service, quotes } = await listMyRequests(await createSessionClient(), id);
+  const supabase = await createSessionClient();
+  const [{ service, quotes }, priced] = await Promise.all([listMyRequests(supabase, id), listMyQuotes(supabase, id)]);
   const open = service.filter((j) => !["delivered", "closed"].includes(j.status));
   const past = service.filter((j) => ["delivered", "closed"].includes(j.status));
 
@@ -54,6 +70,18 @@ export default async function AccountPage(props: PageProps<"/account">) {
             </div>
             <RepairProgress status={job.status} />
             <p className="font-medium">{SERVICE_STATUS_MESSAGE[job.status]}</p>
+            {(() => {
+              const q = quoteFor(priced, (p) => p.service_request_id === job.id);
+              if (!q) return null;
+              const step = customerStep(quoteState(q)).step;
+              return (
+                <div>
+                  <ButtonLink href={`/account/quotes/${q.id}`} size="sm" variant={step === "approve" || step === "pay" ? "primary" : "quiet"}>
+                    {QUOTE_CALL[step]}
+                  </ButtonLink>
+                </div>
+              );
+            })()}
             <details className="text-sm">
               <summary className="cursor-pointer font-semibold">What you told us</summary>
               <p className="mt-2 whitespace-pre-line text-fg-muted">{job.symptoms}</p>
@@ -83,6 +111,7 @@ export default async function AccountPage(props: PageProps<"/account">) {
                   <th scope="col" className="px-4 py-3 font-semibold">Part</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Sent</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Status</th>
+                  <th scope="col" className="px-4 py-3 font-semibold"><span className="sr-only">Quote</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -95,13 +124,23 @@ export default async function AccountPage(props: PageProps<"/account">) {
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">{date(q.created_at)}</td>
                     <td className="px-4 py-3 font-semibold">{QUOTE_STATUS_LABEL[q.status]}</td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const offer = quoteFor(priced, (p) => p.quote_request_id === q.id);
+                        return offer ? (
+                          <Link href={`/account/quotes/${offer.id}`} className="whitespace-nowrap font-semibold">
+                            {QUOTE_CALL[customerStep(quoteState(offer)).step]}
+                          </Link>
+                        ) : null;
+                      })()}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        <p className="text-sm text-fg-muted">Prices and quotes are sent by email. Reply to that email or call us to order.</p>
+        <p className="text-sm text-fg-muted">We email you each quote. You can order and pay online from here or from the email.</p>
       </section>
     </AccountShell>
   );

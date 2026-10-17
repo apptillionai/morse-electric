@@ -10,7 +10,7 @@ import { priceCart, shippingCents, type Fulfillment, type PricedCart } from "./p
 import { getStripe, loadBuyableProducts } from "./store";
 
 /** Stripe needs at least 30 minutes; stock stays reserved this long. */
-const CHECKOUT_MINUTES = 31;
+export const CHECKOUT_MINUTES = 31;
 
 export interface PostalAddress {
   line1: string;
@@ -63,7 +63,6 @@ export type CheckoutResult =
   | { ok: false; error: CheckoutError; cleaned?: CartLine[] };
 
 export type Admin = ReturnType<typeof createAdminClient>;
-
 
 const stripeAddress = (a: PostalAddress) => ({
   line1: a.line1,
@@ -210,6 +209,117 @@ export async function openOrder(
   return { ok: true, order, cart, shipping, returnDays, expiresAt, cancel };
 }
 
+/** One thing to charge for. Stripe Checkout sessions and invoices are built from these. */
+export interface ChargeLine {
+  name: string;
+  description?: string;
+  /** Per unit, in cents. */
+  unitAmount: number;
+  quantity: number;
+  /** A refundable core charge, shown as its own line. */
+  core: boolean;
+  sku?: string | null;
+}
+
+/** The cart's items, each followed by its core charge when it has one. */
+export function cartChargeLines(cart: PricedCart, returnDays: number): ChargeLine[] {
+  return cart.lines.flatMap((l) => [
+    {
+      name: `${l.product.name} (${CONDITION_LABELS[l.product.condition]})`,
+      description: `Part # ${l.product.sku}`,
+      unitAmount: l.product.priceCents ?? 0,
+      quantity: l.quantity,
+      core: false,
+      sku: l.product.sku,
+    },
+    ...(l.coreCents > 0
+      ? [
+          {
+            name: `Core charge (refundable): ${l.product.name}`,
+            description: `Refunded when your old unit comes back within ${returnDays} days and passes inspection.`,
+            unitAmount: l.product.coreChargeCents ?? 0,
+            quantity: l.quantity,
+            core: true,
+            sku: l.product.sku,
+          },
+        ]
+      : []),
+  ]);
+}
+
+/**
+ * Open a Stripe Checkout session for an order in 'checkout' and record it on
+ * the order. Returns the URL to send the customer to. Throws on any Stripe
+ * error; the caller cancels the order.
+ */
+export async function startCheckoutSession(
+  stripe: Stripe,
+  supabase: Admin,
+  input: {
+    order: { id: string; reference: string };
+    lines: ChargeLine[];
+    shipping: number;
+    fulfillment: Fulfillment;
+    customer: CheckoutCustomer | null;
+    /** Prefills the email for guests. */
+    email?: string | null;
+    expiresAt: number;
+    successUrl: string;
+    cancelUrl: string;
+  },
+): Promise<string> {
+  const customer = input.customer ? await stripeCustomerFor(stripe, supabase, input.customer) : undefined;
+  const metadata = { order_id: input.order.id, order_reference: input.order.reference };
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    client_reference_id: input.order.id,
+    metadata,
+    payment_intent_data: { metadata, description: `${SITE.name} order ${input.order.reference}` },
+    expires_at: input.expiresAt,
+    line_items: input.lines.map((l) => ({
+      quantity: l.quantity,
+      price_data: {
+        currency: "usd",
+        unit_amount: l.unitAmount,
+        tax_behavior: "exclusive" as const,
+        product_data: {
+          name: l.name,
+          ...(l.description ? { description: l.description } : {}),
+          metadata: { core: String(l.core), ...(l.sku ? { sku: l.sku } : {}) } as Record<string, string>,
+        },
+      },
+    })),
+    automatic_tax: { enabled: true },
+    ...(customer
+      ? { customer, customer_update: { address: "auto", shipping: "auto", name: "auto" } }
+      : input.email
+        ? { customer_email: input.email }
+        : {}),
+    phone_number_collection: { enabled: true },
+    ...(input.fulfillment === "ship"
+      ? {
+          shipping_address_collection: { allowed_countries: ["US"] },
+          shipping_options: [
+            {
+              shipping_rate_data: {
+                type: "fixed_amount",
+                display_name: "Ground shipping (UPS or FedEx)",
+                fixed_amount: { amount: input.shipping, currency: "usd" },
+                tax_behavior: "exclusive",
+              },
+            },
+          ],
+        }
+      : // Pickup: no shipping address, so tax is worked out from the billing address.
+        { billing_address_collection: "required" }),
+    success_url: input.successUrl,
+    cancel_url: input.cancelUrl,
+  });
+  if (!session.url) throw new Error("Stripe returned no checkout URL");
+  await supabase.from("orders").update({ stripe_checkout_session_id: session.id }).eq("id", input.order.id);
+  return session.url;
+}
+
 /**
  * Turn the cart into an order awaiting payment, reserve its stock and open a
  * Stripe Checkout session for it. Everything is priced again here from the
@@ -229,74 +339,17 @@ export async function createCheckout(input: {
   const { order, cart, shipping, returnDays, expiresAt, cancel } = opened;
 
   try {
-    const customer = input.customer ? await stripeCustomerFor(stripe, supabase, input.customer) : undefined;
-    const metadata = { order_id: order.id, order_reference: order.reference };
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      client_reference_id: order.id,
-      metadata,
-      payment_intent_data: { metadata, description: `${SITE.name} order ${order.reference}` },
-      expires_at: expiresAt,
-      line_items: cart.lines.flatMap<Stripe.Checkout.SessionCreateParams.LineItem>((l) => [
-        {
-          quantity: l.quantity,
-          price_data: {
-            currency: "usd",
-            unit_amount: l.product.priceCents ?? 0,
-            tax_behavior: "exclusive" as const,
-            product_data: {
-              name: `${l.product.name} (${CONDITION_LABELS[l.product.condition]})`,
-              description: `Part # ${l.product.sku}`,
-              metadata: { sku: l.product.sku, core: "false" },
-            },
-          },
-        },
-        // The refundable core charge is its own line, so the receipt shows it separately.
-        ...(l.coreCents > 0
-          ? [
-              {
-                quantity: l.quantity,
-                price_data: {
-                  currency: "usd",
-                  unit_amount: l.product.coreChargeCents ?? 0,
-                  tax_behavior: "exclusive" as const,
-                  product_data: {
-                    name: `Core charge (refundable): ${l.product.name}`,
-                    description: `Refunded when your old unit comes back within ${returnDays} days and passes inspection.`,
-                    metadata: { sku: l.product.sku, core: "true" },
-                  },
-                },
-              },
-            ]
-          : []),
-      ]),
-      automatic_tax: { enabled: true },
-      ...(customer
-        ? { customer, customer_update: { address: "auto", shipping: "auto", name: "auto" } }
-        : {}),
-      phone_number_collection: { enabled: true },
-      ...(input.fulfillment === "ship"
-        ? {
-            shipping_address_collection: { allowed_countries: ["US"] },
-            shipping_options: [
-              {
-                shipping_rate_data: {
-                  type: "fixed_amount",
-                  display_name: "Ground shipping (UPS or FedEx)",
-                  fixed_amount: { amount: shipping, currency: "usd" },
-                  tax_behavior: "exclusive",
-                },
-              },
-            ],
-          }
-        : // Pickup: no shipping address, so tax is worked out from the billing address.
-          { billing_address_collection: "required" }),
-      success_url: `${input.origin}/api/checkout/complete?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${input.origin}/api/checkout/cancel`,
+    const url = await startCheckoutSession(stripe, supabase, {
+      order,
+      lines: cartChargeLines(cart, returnDays),
+      shipping,
+      fulfillment: input.fulfillment,
+      customer: input.customer,
+      expiresAt,
+      successUrl: `${input.origin}/api/checkout/complete?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${input.origin}/api/checkout/cancel`,
     });
-    if (!session.url) throw new Error("Stripe returned no checkout URL");
-    await supabase.from("orders").update({ stripe_checkout_session_id: session.id }).eq("id", order.id);
-    return { ok: true, url: session.url, orderId: order.id };
+    return { ok: true, url, orderId: order.id };
   } catch (error) {
     console.error("[checkout] Stripe session:", error instanceof Error ? error.message : error);
     await cancel();

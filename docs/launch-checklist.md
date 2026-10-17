@@ -2,15 +2,14 @@
 
 Everything that needs a person (you or Morse) rather than code. Updated with each Phase 2 step. ✅ means done.
 
-Last updated: Phase 2, step 3 (Net-30 terms and business account requests).
+Last updated: Phase 2, step 4 (payable quotes and online repair approval).
 
 ## 1. Right now
 
-- [ ] Review [PR #8](https://github.com/apptillionai/morse-electric/pull/8) (Phase 2 plan, steps 0–3) and merge it.
-- [x] ✅ Request-photos migration applied to the live database.
-- [x] ✅ Orders migration applied to the live database.
-- [x] ✅ Core-returns migration applied to the live database.
-- [x] ✅ Net-30 migration applied to the live database.
+- [x] ✅ [PR #8](https://github.com/apptillionai/morse-electric/pull/8) (Phase 2 plan, steps 0–3) merged and live.
+- [x] ✅ Request-photos, orders, core-returns and Net-30 migrations applied to the live database.
+- [ ] Review the step 4 PR (payable quotes and online repair approval) and merge it.
+- [ ] Quotes migration (`20261017010000_quotes.sql`) applied to the live database. Claude does this once you say so. **It must happen before the merge**: the request pages in the admin read the new tables.
 - [ ] After the merge, send one quote request with a photo on the live site and open it in Admin → Quotes to check the photo shows. (Previews can't save requests: they don't have `SUPABASE_SECRET_KEY`.)
 
 ## 2. Vercel environment variables
@@ -21,7 +20,7 @@ Still to add (Project → Settings → Environment Variables):
 
 - [ ] `STRIPE_SECRET_KEY`: a test key (`sk_test_…`) on Preview, the live key (`sk_live_…`) on Production.
 - [ ] `STRIPE_WEBHOOK_SECRET`: from the Stripe webhook endpoint (section 3), one per environment.
-- [ ] `CRON_SECRET`: any long random string, on Production. It switches on the daily core-return reminders (Vercel sends it to `/api/cron/core-reminders`).
+- [x] ✅ `CRON_SECRET` set on Production (Claude generated it). It switches on the daily core-return reminders.
 - [ ] Optional, to test the full store on previews: copy `SUPABASE_SECRET_KEY`, the Turnstile keys and the Resend keys to Preview too. Previews share the live database, so test orders there are real rows; use Stripe test keys only.
 - [ ] Redeploy after adding variables.
 
@@ -41,6 +40,9 @@ Still to add (Project → Settings → Environment Variables):
   - [ ] Cancel an order and check the refund and restock.
   - [ ] Net-30: put a test customer on terms in Admin → Customers, with a company address on their profile. Sign in as them, choose "Charge to my account", and check that the invoice email arrives. Pay it with the test card, and check the order shows "Invoice paid". Try an order over the limit (it should be refused). Cancel a Net-30 order and check the invoice is voided.
   - [ ] Send a business account request from /account/request. Invite it from Admin → Customers.
+  - [ ] Quotes: on a quote request in Admin → Quotes, write a quote with a part, a core charge and a shipping price, and send it. Open the emailed link (in a private window, not signed in), pay with the test card, and check the order appears in Admin → Orders and the request shows "Won".
+  - [ ] Repairs: on a service job, send a repair quote. Approve it from the emailed link and check the job shows "Approved". Set the job to Ready, press "Email the payment link" and pay it. Also decline one and check the job shows "Quote declined" with the reason.
+  - [ ] Net-30 quote: send a quote to the test Net-30 customer, sign in as them and charge it to the account.
 - [ ] Switch Production to the live keys and live webhook secret.
 
 ## 4. Morse to supply or decide
@@ -61,6 +63,11 @@ Still to add (Project → Settings → Environment Variables):
 - [ ] What counts as an acceptable core (in the terms of sale).
 - [ ] **Ask Morse's accountant whether core charges are taxable** in Massachusetts. Right now Stripe taxes them like the item.
 - [ ] The states where Morse is registered to collect sales tax.
+
+**Quotes and repairs**
+- [ ] **Ask the accountant whether repair labour is taxable** in Massachusetts when it's on the same bill as parts. Stripe currently taxes every quote line the same way.
+- [ ] How long quotes stay valid by default (the editor suggests 30 days).
+- [ ] Warranty wording for repairs, linked from the repair quote page (`/policies/warranty`).
 
 **Net-30**
 - [ ] Who qualifies for Net-30 terms, and a typical credit limit. Staff set both per customer in Admin → Customers.
