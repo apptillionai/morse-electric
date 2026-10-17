@@ -130,6 +130,14 @@ export async function submitQuoteRequest(_prev: RequestFormState, formData: Form
   }
 }
 
+/** The unit picked on the service form, if it's really one of this customer's. */
+async function ownUnit(raw: FormDataEntryValue | null, customerId: string): Promise<string | null> {
+  const id = typeof raw === "string" ? raw : "";
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
+  const { data } = await createAdminClient().from("equipment").select("id").eq("id", id).eq("customer_id", customerId).maybeSingle();
+  return data?.id ?? null;
+}
+
 export async function submitServiceRequest(_prev: RequestFormState, formData: FormData): Promise<RequestFormState> {
   const values = formFields(formData, SERVICE_FIELDS);
   if (isBot(formData)) return { status: "success", reference: "received" };
@@ -150,7 +158,8 @@ export async function submitServiceRequest(_prev: RequestFormState, formData: Fo
 
   const input = parsed.data;
   try {
-    const request = await insertServiceRequest(input, { sourcePath: sourcePath(formData), customerId });
+    const equipmentId = customerId ? await ownUnit(formData.get("equipmentId"), customerId) : null;
+    const request = await insertServiceRequest(input, { sourcePath: sourcePath(formData), customerId, equipmentId });
     const { reference } = request;
     const stored = await storeRequestPhotos("service", request, photos.photos);
     const yes = (flag: boolean) => (flag ? "Yes" : null);

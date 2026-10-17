@@ -167,6 +167,26 @@ export function parseSpecs(raw: string): Parsed<SpecLine[]> {
   return { value: specs.slice(0, 40) };
 }
 
+/**
+ * Cross-reference part numbers, one per line or separated by commas or
+ * semicolons: "WEG 00518ET3E184T; Marathon U206". Duplicates are dropped.
+ */
+export function parseCrossRefs(raw: string): Parsed<string[]> {
+  const refs: string[] = [];
+  const seen = new Set<string>();
+  for (const part of clean(raw).split(/\r?\n|[;,]/).map((p) => p.trim().replace(/\s+/g, " ")).filter(Boolean)) {
+    if (part.length > 80) return { error: `Cross-reference “${part.slice(0, 30)}…” is longer than 80 characters` };
+    const k = part.toLowerCase();
+    if (!seen.has(k)) {
+      seen.add(k);
+      refs.push(part);
+    }
+  }
+  return refs.length > 30 ? { error: "At most 30 cross-references" } : { value: refs };
+}
+
+export const formatCrossRefs = (refs: string[], separator = "\n") => refs.join(separator);
+
 export function formatSpecs(specs: SpecLine[], separator = "\n"): string {
   return specs.map((s) => `${s.label}: ${s.value}`).join(separator);
 }

@@ -191,7 +191,8 @@ export function filterProducts(products: ProductSummary[], filters: CatalogFilte
     if (filters.brand && p.brand?.slug !== filters.brand) return false;
     if (terms.length) {
       const haystack = [p.sku, p.mfrPartNumber ?? "", p.name, p.frame ?? ""].join(" ").toLowerCase();
-      if (!terms.every((t) => haystack.includes(t))) return false;
+      const keys = partKeys(p);
+      if (!terms.every((t) => haystack.includes(t) || (partKey(t) !== "" && keys.includes(partKey(t))))) return false;
     }
     return true;
   });
@@ -212,6 +213,30 @@ export function searchTerms(q: string | null): string[] {
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 6);
+}
+
+/**
+ * A part number reduced to lowercase letters and digits, so "EM-3615T",
+ * "em3615t" and "EM 3615T" compare equal. Mirrors private.set_part_keys().
+ */
+export const partKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/** Every part number of a product as searchable keys, like products.part_keys. */
+export function partKeys(p: Pick<ProductSummary, "sku" | "mfrPartNumber" | "crossReferences">): string {
+  return [p.sku, p.mfrPartNumber ?? "", ...p.crossReferences]
+    .join(" ")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, "");
+}
+
+/**
+ * The cross-reference a search matched, so a result can say "Replaces WEG
+ * 00518ET3E184T". Null when the search matched the product's own numbers.
+ */
+export function matchedCrossReference(p: Pick<ProductSummary, "crossReferences">, q: string | null): string | null {
+  const keys = searchTerms(q).map(partKey).filter((k) => k.length >= 3);
+  if (!keys.length) return null;
+  return p.crossReferences.find((ref) => keys.some((k) => partKey(ref).includes(k))) ?? null;
 }
 
 export function sortProducts(products: ProductSummary[], sort: Sort): ProductSummary[] {

@@ -9,6 +9,7 @@ import { EQUIPMENT_TYPES } from "@/lib/requests/schemas";
 import { staffClient } from "@/lib/admin/auth";
 import { QuotePanel } from "@/components/admin/quote-panel";
 import { listQuotesFor } from "@/lib/quotes/store";
+import { nameplateLine } from "@/lib/customers/equipment";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -22,6 +23,9 @@ export default async function ServiceJobPage(props: PageProps<"/admin/service/[i
   const supabase = await staffClient();
   const [j, quotes] = await Promise.all([getServiceRequest(supabase, id), listQuotesFor(supabase, { serviceRequestId: id })]);
   if (!j) notFound();
+  const { data: unit } = j.equipment_id
+    ? await supabase.from("equipment").select("*").eq("id", j.equipment_id).maybeSingle()
+    : { data: null };
 
   return (
     <>
@@ -48,6 +52,15 @@ export default async function ServiceJobPage(props: PageProps<"/admin/service/[i
           <Detail label="Make">{j.make}</Detail>
           <Detail label="Size / rating">{j.size}</Detail>
           <Detail label="Model / serial">{j.model_serial && <span className="font-mono">{j.model_serial}</span>}</Detail>
+          {unit && (
+            <Detail label="Customer’s unit">
+              <strong>{unit.label}</strong>
+              {nameplateLine({ ...unit, hp: unit.hp === null ? null : Number(unit.hp) }) && (
+                <span className="block font-mono text-[13px] text-fg-muted">{nameplateLine({ ...unit, hp: unit.hp === null ? null : Number(unit.hp) })}</span>
+              )}
+              {unit.serial && <span className="block text-fg-muted">S/N {unit.serial}</span>}
+            </Detail>
+          )}
           <Detail label="Symptoms"><span className="whitespace-pre-line">{j.symptoms}</span></Detail>
           <Detail label="Photos">{j.photos.length > 0 && <RequestPhotos photos={j.photos} />}</Detail>
           <Detail label="Pickup wanted">{yesNo(j.wants_pickup)}</Detail>

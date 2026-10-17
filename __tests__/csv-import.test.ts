@@ -130,6 +130,7 @@ function existing(sku: string, overrides: Partial<ProductValues> = {}): Existing
       category: "electric-motors",
       brand: "Acme",
       mfr_part_number: null,
+      cross_references: [],
       family_key: null,
       description: null,
       condition: "new",
@@ -211,6 +212,7 @@ describe("export", () => {
       condition: "used_tested",
       featured: true,
       hp: 7.5,
+      cross_references: ["WEG 00518ET3E184T", "Leeson 121.017"],
     });
     const csv = toCsv([EXPORT_HEADER, exportRow(product.sku, product.values)]);
     const plan = planImport(parseImport(csv), [product], refs);

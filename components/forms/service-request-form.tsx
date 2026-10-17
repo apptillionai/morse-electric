@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, type RefObject } from "react";
 import { submitServiceRequest } from "@/app/actions/requests";
 import { Button } from "@/components/ui/button";
+import type { UnitPrefill } from "@/lib/customers/equipment";
 import { INITIAL_FORM_STATE } from "@/lib/requests/form-state";
 import { EQUIPMENT_TYPES, type EquipmentType } from "@/lib/requests/schemas";
 import { SignedInNote, useAccountPrefill } from "./account-prefill";
@@ -10,6 +11,63 @@ import { CheckboxField, FormMessage, Honeypot, TextAreaField, TextField } from "
 import { PhotoField } from "./photo-field";
 import { RequestReceived } from "./request-received";
 import { Turnstile } from "./turnstile";
+
+/**
+ * For signed-in customers with an equipment list: pick the unit, and its
+ * nameplate details fill the form. /service?unit=<id> (from the account's
+ * "Request a repair") picks it up front. The server checks the unit is theirs.
+ */
+function UnitPicker({ units, formRef }: { units: UnitPrefill[]; formRef: RefObject<HTMLFormElement | null> }) {
+  // Only rendered in the browser (after the prefill request), so the URL is there.
+  const [unitId, setUnitId] = useState(() => {
+    const wanted = new URLSearchParams(window.location.search).get("unit");
+    return wanted && units.some((u) => u.id === wanted) ? wanted : "";
+  });
+
+  const fillFrom = (id: string) => {
+    const unit = units.find((u) => u.id === id);
+    const form = formRef.current;
+    if (!unit || !form) return;
+    const set = (name: string, value: string) => {
+      const input = form.elements.namedItem(name);
+      if (input instanceof HTMLInputElement && value) input.value = value;
+    };
+    set("make", unit.make);
+    set("size", unit.size);
+    set("modelSerial", unit.modelSerial);
+    const radio = form.querySelector<HTMLInputElement>(`input[name="equipmentType"][value="${unit.equipmentType}"]`);
+    if (radio) radio.checked = true;
+  };
+  const fill = (id: string) => {
+    setUnitId(id);
+    fillFrom(id);
+  };
+
+  // A unit picked from the URL fills the form once.
+  const initial = useRef(unitId);
+  useEffect(() => {
+    if (initial.current) fillFrom(initial.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <label className="flex flex-col gap-1.5 text-sm font-semibold">
+      <span>Which of your units is it? <span className="font-normal text-fg-muted">(optional)</span></span>
+      <select
+        name="equipmentId"
+        value={unitId}
+        onChange={(event) => fill(event.target.value)}
+        className="h-11 w-full rounded border border-edge-strong bg-surface px-2.5 text-[15px] font-normal"
+      >
+        <option value="">Not on my list / something else</option>
+        {units.map((u) => (
+          <option key={u.id} value={u.id}>{u.label}</option>
+        ))}
+      </select>
+      <span className="text-[13px] font-normal text-fg-muted">Picking one fills in its details and adds this repair to its history.</span>
+    </label>
+  );
+}
 
 export function ServiceRequestForm({ phone }: { phone: string }) {
   const [state, formAction, pending] = useActionState(submitServiceRequest, INITIAL_FORM_STATE);
@@ -34,6 +92,8 @@ export function ServiceRequestForm({ phone }: { phone: string }) {
       <SignedInNote profile={profile} />
       <input type="hidden" name="source_path" value="/service" />
       <FormMessage message={state.status === "error" ? state.message : undefined} />
+
+      {profile?.units && profile.units.length > 0 && <UnitPicker units={profile.units} formRef={formRef} />}
 
       <fieldset className="m-0 border-0 p-0" aria-describedby={e.equipmentType ? "equipmentType-error" : undefined}>
         <legend className="mb-2.5 font-semibold">What needs service?</legend>

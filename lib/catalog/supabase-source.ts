@@ -3,7 +3,7 @@ import "server-only";
 import { createPublicClient } from "@/lib/supabase/public";
 import { storagePublicUrl } from "@/lib/supabase/env";
 import { parseCredit } from "./photo-credit";
-import { PAGE_SIZE, RPM_BANDS, searchTerms, type CatalogFilters, type Sort } from "./filters";
+import { PAGE_SIZE, partKey, RPM_BANDS, searchTerms, type CatalogFilters, type Sort } from "./filters";
 import type { CatalogSource, ProductPage } from "./source";
 import type {
   Brand,
@@ -23,6 +23,7 @@ interface SummaryRow {
   id: string;
   sku: string;
   mfr_part_number: string | null;
+  cross_references: string[] | null;
   slug: string;
   name: string;
   condition: ProductCondition;
@@ -52,7 +53,7 @@ interface DetailRow extends SummaryRow {
 }
 
 const SUMMARY_COLUMNS =
-  "id, sku, mfr_part_number, slug, name, condition, price_cents, core_charge_cents, in_stock, featured, hp, rpm, frame, enclosure, power, voltage";
+  "id, sku, mfr_part_number, cross_references, slug, name, condition, price_cents, core_charge_cents, in_stock, featured, hp, rpm, frame, enclosure, power, voltage";
 
 function summarySelect({ innerBrand }: { innerBrand: boolean }) {
   return `${SUMMARY_COLUMNS}, category:categories!inner(slug), brand:brands${innerBrand ? "!inner" : ""}(slug, name), images:product_images(storage_path, alt, sort_order)`;
@@ -66,6 +67,7 @@ function toSummary(row: SummaryRow): ProductSummary {
     id: row.id,
     sku: row.sku,
     mfrPartNumber: row.mfr_part_number,
+    crossReferences: row.cross_references ?? [],
     slug: row.slug,
     name: row.name,
     categorySlug: row.category?.slug ?? "",
@@ -121,9 +123,15 @@ async function runSearch(filters: CatalogFilters, page: number) {
   if (filters.power) query = query.eq("power", filters.power);
   if (filters.frame) query = query.ilike("frame", filters.frame);
   // Every term must appear somewhere; terms are pre-sanitized by searchTerms().
+  // part_keys also matches part numbers however they're punctuated, including
+  // cross-references (keep in step with filterProducts).
   for (const term of searchTerms(filters.q)) {
+    const key = partKey(term);
     query = query.or(
-      ["sku", "mfr_part_number", "name", "frame"].map((c) => `${c}.ilike.*${term}*`).join(","),
+      [
+        ...["sku", "mfr_part_number", "name", "frame"].map((c) => `${c}.ilike.*${term}*`),
+        ...(key ? [`part_keys.ilike.*${key}*`] : []),
+      ].join(","),
     );
   }
 

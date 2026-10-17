@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ButtonLink } from "@/components/ui/button";
 import { getCatalog } from "@/lib/catalog";
-import { SORTS, hasActiveFilters, shopHref, type CatalogFilters, type Sort } from "@/lib/catalog/filters";
+import { SORTS, hasActiveFilters, matchedCrossReference, shopHref, type CatalogFilters, type Sort } from "@/lib/catalog/filters";
 import type { Category } from "@/lib/catalog/types";
 import { cn } from "@/lib/utils";
 import { DemoCatalogBanner } from "./demo-banner";
@@ -91,7 +91,7 @@ export async function CatalogView({
             {result.items.length > 0 ? (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-4.5">
                 {result.items.map((p) => (
-                  <ProductCard key={p.id} product={p} />
+                  <ProductCard key={p.id} product={p} matched={matchedCrossReference(p, filters.q)} />
                 ))}
               </div>
             ) : (

@@ -68,6 +68,8 @@ export interface ServiceRequest {
   is_rush: boolean;
   wants_replacement_quote: boolean;
   customer_id: string | null;
+  /** The customer's unit this job is for, if they picked one. */
+  equipment_id: string | null;
   created_at: string;
   updated_at: string;
 }
