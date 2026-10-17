@@ -7,6 +7,7 @@ import { AdvanceOrderForm, CloseOrderForm, OrderNotesForm } from "@/components/a
 import { OrderSummary } from "@/components/orders/order-summary";
 import { staffClient } from "@/lib/admin/auth";
 import { getOrderForStaff, NEXT_STEPS } from "@/lib/admin/orders";
+import { shippedElsewhere } from "@/lib/orders/shipping";
 import { formatDueDate, INVOICE_STATUS_LABELS } from "@/lib/orders/types";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -55,7 +56,15 @@ export default async function OrderPage(props: PageProps<"/admin/orders/[id]">) 
                 {quote.service_request_id ? " (repair)" : ""}
               </Detail>
             )}
-            <Detail label="Delivery">{order.fulfillment === "pickup" ? "Pickup at the shop" : "Ship"}</Detail>
+            <Detail label="Delivery">
+              {order.fulfillment === "pickup" ? "Pickup at the shop" : order.shipping_service ? `Ship by ${order.shipping_service}` : "Ship"}
+              {shippedElsewhere(order.shipping_quote_postal, order.ship_postal) && (
+                <span role="alert" className="mt-1 block font-semibold text-danger">
+                  Shipping was quoted to ZIP {order.shipping_quote_postal}, but the customer entered {order.ship_postal} at checkout.
+                  Check the rate before you ship.
+                </span>
+              )}
+            </Detail>
             <Detail label="Payment">
               {order.payment_method ? PAYMENT[order.payment_method] : null}
               {stripeUrl && <> · <a href={stripeUrl} target="_blank" rel="noreferrer">View in Stripe</a></>}

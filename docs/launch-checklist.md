@@ -2,7 +2,7 @@
 
 Everything that needs a person (you or Morse) rather than code. Updated with each Phase 2 step. ✅ means done.
 
-Last updated: Phase 2, step 6 (contractor and volume pricing).
+Last updated: Phase 2, step 7 (live shipping rates).
 
 ## 1. Right now
 
@@ -11,7 +11,9 @@ Last updated: Phase 2, step 6 (contractor and volume pricing).
 - [x] ✅ [PR #9](https://github.com/apptillionai/morse-electric/pull/9) (step 4, payable quotes) merged and live, with its migration.
 - [x] ✅ [PR #10](https://github.com/apptillionai/morse-electric/pull/10) (step 5: Merchant Center feed, cross-reference search, equipment lists) merged and live, with its migration.
 - [x] ✅ Contractor and volume pricing migration applied to the live database.
-- [ ] Review the step 6 PR (contractor and volume pricing) and merge it.
+- [x] ✅ [PR #11](https://github.com/apptillionai/morse-electric/pull/11) (step 6: contractor and volume pricing) merged and live, with its migration.
+- [ ] Apply the live shipping rates migration to the live database **before merging** step 7 (the cart, admin orders and settings read its columns).
+- [ ] Review the step 7 PR (live shipping rates) and merge it.
 - [ ] After the merge, send one quote request with a photo on the live site and open it in Admin → Quotes to check the photo shows. (Previews can't save requests: they don't have `SUPABASE_SECRET_KEY`.)
 
 ## 2. Vercel environment variables
@@ -91,8 +93,15 @@ Still to add (Project → Settings → Environment Variables):
 - [ ] Products → Feeds: add a scheduled fetch of `https://morseelectricmotor.com/feeds/google.xml` (daily). It's empty until the store is switched on.
 - [ ] Merchant Center → Shipping and returns: set the return policy (window, who pays return shipping, restocking fee) to match `/policies/returns`. Shipping prices come from the feed.
 
-**Still to choose (left over from step 5)**
-- [ ] Live UPS/FedEx rates at checkout instead of weight bands: needs a UPS or FedEx account with API access, or a service such as Shippo or EasyPost (an account and API key). Tell Claude which, and it can be built.
+**Live shipping rates (Shippo)**
+- [ ] Morse signs up at goshippo.com and connects the carrier accounts it wants (Shippo's own discounted UPS/USPS accounts work straight away; Morse's own UPS or FedEx account can be added under Carriers).
+- [ ] Put Shippo's **test** API token (`shippo_test_…`) in `SHIPPO_API_KEY` for Preview, and the **live** token (`shippo_live_…`) for Production, then redeploy.
+- [ ] Admin → Settings: make sure the business street, city, **two-letter state** (MA) and ZIP are filled in (they're the ship-from address), set the default box size Morse usually ships in and any handling fee, then tick **Use live carrier rates** and save.
+- [ ] Check a few ZIP codes in the cart (near, far, a PO box ZIP) and compare the rates with Shippo's own rate calculator.
+- [ ] Keep the weight bands filled in: they're the fallback when Shippo can't be reached.
+- [ ] Merchant Center: once live rates are on, the feed stops giving a shipping price. Under Shipping and returns, set up **carrier-calculated rates** (UPS/FedEx from Gardner, MA 01440) so Google can still show shipping costs.
+
+**Still to choose**
 - [ ] An accounting sync: which software Morse uses (QuickBooks Online, Xero, …). Stripe already holds every payment and invoice; a sync is only worth building if Morse wants them in the books automatically.
 
 ## 6. Go live

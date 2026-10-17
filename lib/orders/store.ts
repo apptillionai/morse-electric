@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { CART_COOKIE, parseCart, serializeCart, type CartLine } from "./cart";
 import { parsePriceBreaks, tierOf, type BuyableProduct, type CustomerPricing } from "./pricing";
+import { parseZip } from "./shipping";
 
 /** Server-side Stripe client, or null when STRIPE_SECRET_KEY isn't set. */
 export function getStripe(): Stripe | null {
@@ -44,6 +45,23 @@ export async function writeCart(lines: CartLine[]): Promise<void> {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     maxAge: 60 * 60 * 24 * 30,
+  });
+}
+
+/** The ZIP code live shipping rates are quoted to. httpOnly; it's only ever read on the server. */
+export const SHIP_ZIP_COOKIE = "morse_ship_zip";
+
+export async function readShipZip(): Promise<string | null> {
+  return parseZip((await cookies()).get(SHIP_ZIP_COOKIE)?.value);
+}
+
+export async function writeShipZip(zip: string): Promise<void> {
+  (await cookies()).set(SHIP_ZIP_COOKIE, zip, {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60 * 60 * 24 * 90,
   });
 }
 

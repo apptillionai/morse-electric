@@ -9,6 +9,7 @@ import type { CartLine } from "./cart";
 import { cartChargeLines, openOrder, stripeCustomerFor, type Admin, type ChargeLine, type CheckoutCustomer, type CheckoutError } from "./checkout";
 import { sendOrderEmails } from "./email";
 import type { Fulfillment } from "./pricing";
+import { parseZip, type Destination } from "./shipping";
 import { getStripe } from "./store";
 
 export const NET30_DAYS = 30;
@@ -48,6 +49,15 @@ async function unwind(stripe: Stripe, supabase: Admin, orderId: string, invoice:
   }
   const { error } = await supabase.rpc("fail_order_payment", { p_order_id: orderId });
   if (error) console.error("[net30] couldn't cancel order", orderId, error.message);
+}
+
+/**
+ * Where a Net-30 order is quoted to: the ZIP code of the account's shipping
+ * address (the cart quotes by ZIP code too, so both see the same rates).
+ */
+export function accountDestination(profile: CustomerProfile): Destination | null {
+  const postal = parseZip(profile.ship_postal);
+  return profile.ship_line1 && postal ? { postal } : null;
 }
 
 /**
@@ -165,14 +175,23 @@ export async function createNet30Order(input: {
   fulfillment: Fulfillment;
   userId: string;
   customer: CustomerProfile;
+  /** With live rates: the service chosen in the cart, and the ZIP code the cart quoted it to. */
+  shipping?: { code: string | null; zip: string | null };
 }): Promise<Net30Result> {
   const stripe = getStripe();
   if (!stripe) return { ok: false, error: "unavailable" };
   const billing = accountBilling(input.userId, input.customer, input.fulfillment);
   if (!billing.ok) return billing;
   const { customer, orderFields } = billing;
+  // A Net-30 order ships to the account's address, so a live rate must have been quoted to its ZIP code.
+  const to = accountDestination(input.customer);
+  if (input.shipping?.code && to && input.shipping.zip !== to.postal) return { ok: false, error: "ship_zip_mismatch" };
   const supabase = createAdminClient();
-  const opened = await openOrder(supabase, { cart: input.cart, fulfillment: input.fulfillment, customer }, orderFields);
+  const opened = await openOrder(
+    supabase,
+    { cart: input.cart, fulfillment: input.fulfillment, customer, shipping: { to, code: input.shipping?.code ?? null } },
+    orderFields,
+  );
   if (!opened.ok) return opened;
   const { order, cart, shipping, cancel } = opened;
 

@@ -7,6 +7,8 @@ import { SITE } from "@/lib/site";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CartLine } from "./cart";
 import { priceCart, priceNote, shippingCents, type CustomerPricing, type Fulfillment, type PricedCart } from "./pricing";
+import { liveRatesConfig, quoteShipping } from "./live-rates";
+import type { Destination } from "./shipping";
 import { customerPricing, getStripe, loadBuyableProducts } from "./store";
 
 /** Stripe needs at least 30 minutes; stock stays reserved this long. */
@@ -40,7 +42,10 @@ export type CheckoutError =
   | "no_shipping"
   | "over_limit"
   | "not_on_terms"
-  | "no_address";
+  | "no_address"
+  | "no_ship_to"
+  | "shipping_changed"
+  | "ship_zip_mismatch";
 
 export const CHECKOUT_ERRORS: Record<CheckoutError, string> = {
   unavailable: "Online checkout isn’t available right now. Please call us to order.",
@@ -51,6 +56,9 @@ export const CHECKOUT_ERRORS: Record<CheckoutError, string> = {
   over_limit: "This order would go over your account’s credit limit. Pay by card or bank transfer instead, or call us.",
   not_on_terms: "Your account isn’t set up for Net-30 terms. Pay by card or bank transfer instead.",
   no_address: "Add your company address in Company details first, so we can invoice (and ship) the order.",
+  no_ship_to: "Enter your ZIP code and choose a shipping option, or choose pickup.",
+  shipping_changed: "That shipping option has changed or is no longer available. Choose shipping again and check the price.",
+  ship_zip_mismatch: "Orders on account ship to the address on your account. Enter that ZIP code for shipping, or pay now.",
 };
 
 export function isCheckoutError(value: unknown): value is CheckoutError {
@@ -117,11 +125,19 @@ export async function stripeCustomerFor(stripe: Stripe, supabase: Admin, custome
   return created.id;
 }
 
+/** What the customer chose for a shipped order. `code` is a live rate's code (null with the weight bands). */
+export interface ShippingChoice {
+  to: Destination | null;
+  code: string | null;
+}
+
 type OpenedOrder =
   | {
       ok: true;
       order: { id: string; reference: string };
       cart: PricedCart;
+      /** The live rate's service ("UPS Ground"); null with the weight bands. */
+      shippingLabel: string | null;
       /** The customer's tier, which the cart was priced at. */
       pricing: CustomerPricing | null;
       shipping: number;
@@ -140,7 +156,7 @@ type OpenedOrder =
  */
 export async function openOrder(
   supabase: Admin,
-  input: { cart: CartLine[]; fulfillment: Fulfillment; customer: CheckoutCustomer | null },
+  input: { cart: CartLine[]; fulfillment: Fulfillment; customer: CheckoutCustomer | null; shipping?: ShippingChoice },
   extra: Record<string, unknown> = {},
 ): Promise<OpenedOrder> {
   // Free stock held by checkouts whose expiry event never arrived.
@@ -156,7 +172,24 @@ export async function openOrder(
   const cart = priceCart(input.cart, products, shippingRates, pricing);
   if (cart.adjustments.length) return { ok: false, error: "changed", cleaned: cart.cleaned };
   if (!cart.lines.length) return { ok: false, error: "empty" };
-  const shipping = shippingCents(cart, input.fulfillment);
+
+  // Shipping: the customer's chosen live rate, quoted again here (the
+  // address and code come from the browser, the price never does), or the
+  // weight bands when live rates are off.
+  let shipping: number | null;
+  let service: { label: string; code: string; zip: string } | null = null;
+  const live = input.fulfillment === "ship" ? await liveRatesConfig() : null;
+  if (live) {
+    if (!input.shipping?.to || !input.shipping.code) return { ok: false, error: "no_ship_to" };
+    const quote = await quoteShipping(cart, input.shipping.to, live);
+    if (quote.kind === "blocked") return { ok: false, error: "no_shipping" };
+    const option = quote.kind === "options" ? quote.options.find((o) => o.code === input.shipping!.code) : undefined;
+    if (!option) return { ok: false, error: "shipping_changed" };
+    shipping = option.cents;
+    service = { label: option.label, code: option.code, zip: input.shipping.to.postal };
+  } else {
+    shipping = shippingCents(cart, input.fulfillment);
+  }
   if (shipping === null) return { ok: false, error: "no_shipping" };
 
   const expiresAt = Math.floor(Date.now() / 1000) + CHECKOUT_MINUTES * 60;
@@ -173,6 +206,9 @@ export async function openOrder(
       total_cents: cart.subtotalCents + cart.coreCents + shipping,
       expires_at: new Date(expiresAt * 1000).toISOString(),
       ...extra,
+      ...(service
+        ? { shipping_service: service.label, shipping_service_code: service.code, shipping_quote_postal: service.zip }
+        : {}),
     })
     .select("id, reference")
     .single();
@@ -211,7 +247,7 @@ export async function openOrder(
     await cancel();
     return { ok: false, error: reserveError ? "unavailable" : "sold_out", cleaned: input.cart };
   }
-  return { ok: true, order, cart, pricing, shipping, returnDays, expiresAt, cancel };
+  return { ok: true, order, cart, shippingLabel: service?.label ?? null, pricing, shipping, returnDays, expiresAt, cancel };
 }
 
 /** One thing to charge for. Stripe Checkout sessions and invoices are built from these. */
@@ -265,6 +301,8 @@ export async function startCheckoutSession(
     lines: ChargeLine[];
     shipping: number;
     fulfillment: Fulfillment;
+    /** The live rate's service, shown as Stripe's shipping option. */
+    shippingLabel?: string | null;
     customer: CheckoutCustomer | null;
     /** Prefills the email for guests. */
     email?: string | null;
@@ -308,7 +346,7 @@ export async function startCheckoutSession(
             {
               shipping_rate_data: {
                 type: "fixed_amount",
-                display_name: "Ground shipping (UPS or FedEx)",
+                display_name: (input.shippingLabel ?? "Ground shipping (UPS or FedEx)").slice(0, 100),
                 fixed_amount: { amount: input.shipping, currency: "usd" },
                 tax_behavior: "exclusive",
               },
@@ -335,19 +373,21 @@ export async function createCheckout(input: {
   fulfillment: Fulfillment;
   origin: string;
   customer: CheckoutCustomer | null;
+  shipping?: ShippingChoice;
 }): Promise<CheckoutResult> {
   const stripe = getStripe();
   if (!stripe) return { ok: false, error: "unavailable" };
   const supabase = createAdminClient();
   const opened = await openOrder(supabase, input);
   if (!opened.ok) return opened;
-  const { order, cart, pricing, shipping, returnDays, expiresAt, cancel } = opened;
+  const { order, cart, pricing, shipping, shippingLabel, returnDays, expiresAt, cancel } = opened;
 
   try {
     const url = await startCheckoutSession(stripe, supabase, {
       order,
       lines: cartChargeLines(cart, returnDays, pricing),
       shipping,
+      shippingLabel,
       fulfillment: input.fulfillment,
       customer: input.customer,
       expiresAt,

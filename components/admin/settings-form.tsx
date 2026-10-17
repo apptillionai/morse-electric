@@ -17,6 +17,16 @@ export interface StoreSettings {
   /** Which Stripe keys are missing on the server, if any. */
   missing: string[];
   coreReturnDays: number;
+  live: {
+    enabled: boolean;
+    /** Form values: inches and the handling fee in dollars. */
+    length: string;
+    width: string;
+    height: string;
+    handlingFee: string;
+    /** SHIPPO_API_KEY isn't set on the server. */
+    keyMissing: boolean;
+  };
 }
 
 export function SettingsForm({
@@ -36,6 +46,8 @@ export function SettingsForm({
   const theme = (state.values?.default_theme as DefaultTheme | undefined) ?? defaultTheme;
   const storeOn = state.values ? state.values.store_enabled === "on" : store.enabled;
   const rate = (f: string) => state.values?.[f] ?? store.rates[f] ?? "";
+  const liveOn = state.values ? state.values.live_rates_enabled === "on" : store.live.enabled;
+  const shipFromMissing = !(v("street") && v("city") && v("state") && v("postal_code"));
 
   return (
     <form action={action} key={key} className="flex max-w-3xl flex-col gap-6" noValidate>
@@ -96,7 +108,8 @@ export function SettingsForm({
           <span className="font-semibold">Parcel shipping by order weight</span>
           <span className="text-sm text-fg-muted">
             Each row is “orders up to this weight cost this much”. Heavier orders, and anything without a weight on file,
-            can only be picked up. Pickup is always free.
+            can only be picked up. Pickup is always free. With live rates on, these only apply when Shippo can’t be reached,
+            and they price Google Shopping only while live rates are off.
           </span>
           <div className="grid max-w-md grid-cols-2 gap-x-4 gap-y-2">
             {Array.from({ length: RATE_ROWS }, (_, i) => (
@@ -107,6 +120,45 @@ export function SettingsForm({
             ))}
           </div>
         </div>
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-4 rounded-md border border-edge bg-surface p-6" aria-describedby="live-hint">
+        <legend className={legend}>Live shipping rates</legend>
+        <p id="live-hint" className="text-sm text-fg-muted">
+          Customers enter their ZIP code in the cart and choose from real UPS, FedEx and USPS rates (through Shippo)
+          instead of the weight bands. Orders are packed into the box below, up to 150 lb a box. The ship-from address is
+          the business address above.
+        </p>
+        {(store.live.keyMissing || shipFromMissing) && (
+          <p role="note" className="rounded border-2 border-warn px-4 py-3 text-sm">
+            Live rates stay off until{" "}
+            {[store.live.keyMissing && "SHIPPO_API_KEY is set in Vercel", shipFromMissing && "the business street, city, state and ZIP are filled in"]
+              .filter(Boolean)
+              .join(" and ")}
+            .
+          </p>
+        )}
+        <label className="flex min-h-11 cursor-pointer items-center gap-3 font-semibold">
+          <input type="checkbox" name="live_rates_enabled" defaultChecked={liveOn} className="size-[18px] accent-fg" />
+          Use live carrier rates
+        </label>
+        <div className="flex flex-col gap-2">
+          <span className="font-semibold">Default box (inches)</span>
+          <div className="grid max-w-md grid-cols-3 gap-x-4">
+            <TextField label="Length" name="parcel_length" required inputMode="decimal" defaultValue={state.values?.parcel_length ?? store.live.length} error={e.parcel_length} />
+            <TextField label="Width" name="parcel_width" required inputMode="decimal" defaultValue={state.values?.parcel_width ?? store.live.width} error={e.parcel_width} />
+            <TextField label="Height" name="parcel_height" required inputMode="decimal" defaultValue={state.values?.parcel_height ?? store.live.height} error={e.parcel_height} />
+          </div>
+        </div>
+        <TextField
+          label="Handling fee ($)"
+          name="handling_fee"
+          inputMode="decimal"
+          defaultValue={state.values?.handling_fee ?? store.live.handlingFee}
+          error={e.handling_fee}
+          hint="Added to every live rate for packing. Leave blank for none."
+          className="max-w-md"
+        />
       </fieldset>
 
       <fieldset className="flex flex-col gap-2 rounded-md border border-edge bg-surface p-6" aria-describedby="theme-hint">

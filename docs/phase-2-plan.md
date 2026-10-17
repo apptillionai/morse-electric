@@ -18,7 +18,7 @@ These are agreed defaults. Items marked **Morse to confirm** need a value or wor
 | Topic | Decision | Morse to confirm |
 | --- | --- | --- |
 | Who can buy | Guest checkout for card orders. Net-30 needs an account. Add a public "Request a business account" form, because accounts stay invite-only. | — |
-| Shipping | Version 1: flat rates by weight band, edited in Admin → Settings, plus free local pickup. Freight (`ltl`) items don't go through checkout; they get a freight quote request. Live UPS/FedEx rates come later. | The weight bands and their prices |
+| Shipping | Version 1: flat rates by weight band, edited in Admin → Settings, plus free local pickup. Freight (`ltl`) items don't go through checkout; they get a freight quote request. Step 7 adds live UPS, FedEx and USPS rates through Shippo, quoted to the customer's ZIP code, with the bands as the fallback. | The weight bands and their prices; a Shippo account, the usual box size and any handling fee |
 | Sales tax | Stripe Tax (Massachusetts 6.25% and any other state where Morse must collect). Customers with an approved exemption are created in Stripe as tax-exempt. | Which states Morse is registered in |
 | Core charges | The core is its own line at checkout, refunded when the old unit comes back and passes inspection. "Exchange" items always carry a core. | Return window (proposed 30 days); what counts as an acceptable core |
 | Net-30 | Staff turn on terms and set a credit limit per customer. Billing goes through Stripe Invoicing (hosted payment page, ACH, automatic reminders). An order is blocked if open balance + order total would exceed the limit. | Who qualifies; default limit |
@@ -109,7 +109,8 @@ These are agreed defaults. Items marked **Morse to confirm** need a value or wor
 5. **Cross-reference search.** Done in Step 5. Search by a competitor's or the original manufacturer's part number in the part finder.
 6. **Google Shopping free listings.** Done in Step 5: a Merchant Center feed and shipping details in the Product JSON-LD. The return policy is set once in Merchant Center rather than per product.
 7. **Contractor and volume pricing.** Done in Step 6: price tiers (a % off list) that staff give customers, and quantity prices per product. A customer pays the lowest of list, quantity and tier price; discounts never stack.
-8. **Later:** a QuickBooks sync, live freight rates.
+8. **Live parcel rates.** Done in Step 7: real UPS, FedEx and USPS rates through Shippo, quoted to the customer's ZIP code in the cart.
+9. **Later:** a QuickBooks sync, live freight (LTL) rates, buying shipping labels from the admin.
 
 ## Order of work
 
@@ -124,6 +125,7 @@ Each step is its own PR. Every PR passes `npm run lint`, `npm run typecheck`, `n
 | 4 | Payable quotes; online repair approval and payment ✅ | Step 1 (Step 3 for paying on terms) |
 | 5 | Merchant Center feed ✅, equipment lists ✅, cross-reference search ✅; live parcel rates and an accounting sync wait on Morse choosing a carrier account and accounting software | — |
 | 6 | Contractor price tiers and quantity prices, in the cart, checkout, Net-30 and catalog quotes ✅ | Step 1 |
+| 7 | Live parcel rates through Shippo, with the weight bands as the fallback ✅ | Step 1; a Shippo account to switch on |
 
 ### Before turning the store on
 

@@ -67,6 +67,11 @@ export interface Order {
   subtotal_cents: number;
   core_cents: number;
   shipping_cents: number;
+  /** Live rates: the service the customer chose ("UPS Ground") and its code ("ups:ups_ground"). */
+  shipping_service: string | null;
+  shipping_service_code: string | null;
+  /** Live rates: the ZIP code shipping was quoted to (Stripe then collects the full address). */
+  shipping_quote_postal: string | null;
   tax_cents: number;
   total_cents: number;
   payment_method: "card" | "ach" | "net30" | "other" | null;
