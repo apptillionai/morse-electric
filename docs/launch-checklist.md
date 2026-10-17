@@ -10,7 +10,7 @@ Last updated: Phase 2, step 6 (contractor and volume pricing).
 - [x] ✅ Request-photos, orders, core-returns and Net-30 migrations applied to the live database.
 - [x] ✅ [PR #9](https://github.com/apptillionai/morse-electric/pull/9) (step 4, payable quotes) merged and live, with its migration.
 - [x] ✅ [PR #10](https://github.com/apptillionai/morse-electric/pull/10) (step 5: Merchant Center feed, cross-reference search, equipment lists) merged and live, with its migration.
-- [ ] Apply the contractor and volume pricing migration to the live database (before the step 6 preview can build).
+- [x] ✅ Contractor and volume pricing migration applied to the live database.
 - [ ] Review the step 6 PR (contractor and volume pricing) and merge it.
 - [ ] After the merge, send one quote request with a photo on the live site and open it in Admin → Quotes to check the photo shows. (Previews can't save requests: they don't have `SUPABASE_SECRET_KEY`.)
 
