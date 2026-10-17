@@ -12,7 +12,7 @@ Last updated: Phase 2, step 7 (live shipping rates).
 - [x] ✅ [PR #10](https://github.com/apptillionai/morse-electric/pull/10) (step 5: Merchant Center feed, cross-reference search, equipment lists) merged and live, with its migration.
 - [x] ✅ Contractor and volume pricing migration applied to the live database.
 - [x] ✅ [PR #11](https://github.com/apptillionai/morse-electric/pull/11) (step 6: contractor and volume pricing) merged and live, with its migration.
-- [ ] Apply the live shipping rates migration to the live database **before merging** step 7 (the cart, admin orders and settings read its columns).
+- [x] ✅ Live shipping rates migration applied to the live database.
 - [ ] Review the step 7 PR (live shipping rates) and merge it.
 - [ ] After the merge, send one quote request with a photo on the live site and open it in Admin → Quotes to check the photo shows. (Previews can't save requests: they don't have `SUPABASE_SECRET_KEY`.)
 

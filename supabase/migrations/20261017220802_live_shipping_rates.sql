@@ -1,7 +1,7 @@
 -- Live shipping rates (Phase 2, step 7).
 --
 --   * When staff switch on live rates (site_settings.live_rates_enabled) and
---     SHIPPO_API_KEY is set, the cart asks for the delivery address and offers
+--     SHIPPO_API_KEY is set, the cart asks for the delivery ZIP code and offers
 --     the carriers' real rates from Shippo instead of the weight bands. The
 --     bands stay as the fallback when Shippo can't be reached, and they still
 --     price the Google Shopping feed unless live rates are on.
