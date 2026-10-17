@@ -8,6 +8,7 @@ import { getBusiness } from "@/lib/site-settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatPrice } from "@/lib/utils";
 import { formatDueDate, getOrder, shippingLines, type CoreReturn, type OrderWithItems } from "./types";
+import { shippedElsewhere } from "./shipping";
 
 export type OrderEmailKind =
   | "placed"
@@ -42,7 +43,10 @@ export function orderSummary(order: OrderWithItems): { html: string; text: strin
   const totals = [
     { label: "Subtotal", amount: money(order.subtotal_cents) },
     ...(order.core_cents > 0 ? [{ label: "Core charges (refundable)", amount: money(order.core_cents) }] : []),
-    { label: order.fulfillment === "pickup" ? "Pickup" : "Shipping", amount: order.fulfillment === "pickup" ? "Free" : money(order.shipping_cents) },
+    {
+      label: order.fulfillment === "pickup" ? "Pickup" : order.shipping_service ? `Shipping (${order.shipping_service})` : "Shipping",
+      amount: order.fulfillment === "pickup" ? "Free" : money(order.shipping_cents),
+    },
     { label: "Tax", amount: money(order.tax_cents) },
     { label: "Total", amount: money(order.total_cents) },
   ];
@@ -187,7 +191,10 @@ async function customerMessage(kind: OrderEmailKind, order: OrderWithItems, core
 
 function staffMessage(kind: OrderEmailKind, order: OrderWithItems): Message | null {
   const ref = order.reference;
-  const how = order.fulfillment === "pickup" ? "pickup" : "to ship";
+  const how = order.fulfillment === "pickup" ? "pickup" : order.shipping_service ? `to ship by ${order.shipping_service}` : "to ship";
+  const moved = shippedElsewhere(order.shipping_quote_postal, order.ship_postal)
+    ? [`Check the shipping: it was quoted to ZIP ${order.shipping_quote_postal}, but the customer entered ${order.ship_postal} at checkout.`]
+    : [];
   switch (kind) {
     case "invoice_paid":
       return { subject: `Invoice paid for Net-30 order ${ref}`, lines: [`${order.name ?? "The customer"} paid the invoice for order ${ref} (${money(order.total_cents)}).`] };
@@ -200,7 +207,7 @@ function staffMessage(kind: OrderEmailKind, order: OrderWithItems): Message | nu
       }
       return order.status === "pending_payment"
         ? { subject: `New order ${ref} (${money(order.total_cents)}), ACH pending`, lines: ["Don’t release it until the bank payment clears; you’ll get another email."] }
-        : { subject: `New order ${ref} (${money(order.total_cents)}), ${how}`, lines: [`From ${order.name ?? order.email ?? "a customer"}.`] };
+        : { subject: `New order ${ref} (${money(order.total_cents)}), ${how}`, lines: [`From ${order.name ?? order.email ?? "a customer"}.`, ...moved] };
     case "paid":
       return { subject: `Payment cleared for order ${ref}`, lines: [`The ACH payment cleared. Order ${ref} is ready to fulfil (${how}).`] };
     case "payment_failed":

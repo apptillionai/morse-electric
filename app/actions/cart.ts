@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSignedInUser, requireCustomer } from "@/lib/customers/account";
@@ -8,7 +9,8 @@ import { addToCart, isProductId, MAX_LINE_QUANTITY, setCartQuantity } from "@/li
 import { abandonCheckout, createCheckout } from "@/lib/orders/checkout";
 import { createNet30Order } from "@/lib/orders/net30";
 import { onlinePurchaseBlock } from "@/lib/orders/pricing";
-import { CHECKOUT_COOKIE, loadBuyableProducts, readCart, storeIsOpen, writeCart } from "@/lib/orders/store";
+import { parseFulfillmentChoice, parseZip } from "@/lib/orders/shipping";
+import { CHECKOUT_COOKIE, loadBuyableProducts, readCart, readShipZip, storeIsOpen, writeCart, writeShipZip } from "@/lib/orders/store";
 import { getOrder } from "@/lib/orders/types";
 import { createSessionClient } from "@/lib/supabase/server";
 
@@ -49,9 +51,26 @@ export async function removeCartLineAction(formData: FormData): Promise<void> {
   redirect("/cart");
 }
 
+/** The ZIP code shipping rates are quoted to. */
+export async function setShipZipAction(formData: FormData): Promise<void> {
+  const raw = String(formData.get("zip") ?? "").slice(0, 20);
+  const zip = parseZip(raw);
+  if (!zip) redirect(`/cart?zip_error=1&zip=${encodeURIComponent(raw)}#ship-zip`);
+  await writeShipZip(zip);
+  // The ZIP in the URL makes it a new address, so the browser shows the new rates
+  // (a redirect to the very same URL only scrolls).
+  revalidatePath("/cart");
+  redirect(`/cart?zip=${zip}#delivery`);
+}
+
 export async function checkoutAction(formData: FormData): Promise<void> {
   if (!(await storeIsOpen())) redirect("/cart?error=unavailable");
-  const fulfillment = formData.get("fulfillment") === "pickup" ? "pickup" : "ship";
+  // "pickup", "ship" (weight bands) or "ship:<service>" (a live rate, quoted again at checkout).
+  const choice = parseFulfillmentChoice(formData.get("fulfillment"));
+  const fulfillment = choice.fulfillment;
+  const code = choice.fulfillment === "ship" ? choice.code : null;
+  const zip = await readShipZip();
+  const back = encodeURIComponent(String(formData.get("fulfillment") ?? fulfillment).slice(0, 140));
 
   // One open checkout per browser: starting again releases the last one's stock.
   const jar = await cookies();
@@ -63,10 +82,16 @@ export async function checkoutAction(formData: FormData): Promise<void> {
   // Net-30 customers can charge the order to their account instead of paying now.
   if (formData.get("payment") === "account") {
     if (!user?.customer) redirect("/account/login?next=/cart");
-    const placed = await createNet30Order({ cart: await readCart(), fulfillment, userId: user.id, customer: user.customer });
+    const placed = await createNet30Order({
+      cart: await readCart(),
+      fulfillment,
+      userId: user.id,
+      customer: user.customer,
+      shipping: { code, zip },
+    });
     if (!placed.ok) {
       if (placed.cleaned) await writeCart(placed.cleaned);
-      redirect(`/cart?error=${placed.error}&fulfillment=${fulfillment}&payment=account`);
+      redirect(`/cart?error=${placed.error}&fulfillment=${back}&payment=account`);
     }
     await writeCart([]);
     redirect(`/account/orders/${placed.reference}?placed=1`);
@@ -82,10 +107,16 @@ export async function checkoutAction(formData: FormData): Promise<void> {
       }
     : null;
 
-  const result = await createCheckout({ cart: await readCart(), fulfillment, origin: await siteOrigin(), customer });
+  const result = await createCheckout({
+    cart: await readCart(),
+    fulfillment,
+    origin: await siteOrigin(),
+    customer,
+    shipping: { to: zip ? { postal: zip } : null, code },
+  });
   if (!result.ok) {
     if (result.cleaned) await writeCart(result.cleaned);
-    redirect(`/cart?error=${result.error}&fulfillment=${fulfillment}`);
+    redirect(`/cart?error=${result.error}&fulfillment=${back}`);
   }
   jar.set(CHECKOUT_COOKIE, result.orderId, {
     path: "/",

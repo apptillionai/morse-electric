@@ -99,3 +99,16 @@ describe("renderFeed", () => {
     expect(xml).not.toContain("<item>");
   });
 });
+
+describe("with live carrier rates", () => {
+  it("leaves shipping to Merchant Center and lists anything one parcel can carry", () => {
+    expect(feedExclusion(product({ weightLb: 140 }), null)).toBeNull();
+    expect(feedExclusion(product({ weightLb: 151 }), null)).toBe("too heavy for one parcel");
+    expect(feedExclusion(product({ weightLb: null }), null)).toBe("no weight");
+    const [item] = feedItems([product({ weightLb: 140 })], null, SITE);
+    expect(item.shippingPrice).toBeNull();
+    const xml = renderFeed([item], { title: "Morse", link: SITE, description: "Parts" });
+    expect(xml).not.toContain("<g:shipping>");
+    expect(xml).toContain("<g:shipping_weight>140 lb</g:shipping_weight>");
+  });
+});

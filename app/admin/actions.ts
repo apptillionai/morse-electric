@@ -20,7 +20,7 @@ import { isSupabaseAdminConfigured } from "@/lib/supabase/env";
 import { SITE_SETTINGS_TAG } from "@/lib/site-settings";
 import { isDefaultTheme } from "@/lib/theme";
 import { BUSINESS_FIELDS, businessSchema } from "@/lib/business";
-import { parseRateRows, RATE_FIELDS } from "@/lib/orders/settings";
+import { LIVE_RATE_FIELDS, parseLiveRateFields, parseRateRows, RATE_FIELDS } from "@/lib/orders/settings";
 import { createSessionClient } from "@/lib/supabase/server";
 
 // Every action re-checks staff access: server actions are reachable by POST
@@ -480,19 +480,28 @@ export interface SettingsState {
 
 export async function saveSettingsAction(_prev: SettingsState, formData: FormData): Promise<SettingsState> {
   const staff = await requireStaff();
-  const values = formFields(formData, ["default_theme", "store_enabled", "core_return_days", ...BUSINESS_FIELDS, ...RATE_FIELDS] as const);
+  const values = formFields(formData, [
+    "default_theme",
+    "store_enabled",
+    "core_return_days",
+    ...BUSINESS_FIELDS,
+    ...RATE_FIELDS,
+    ...LIVE_RATE_FIELDS,
+  ] as const);
   const theme = values.default_theme;
   if (!isDefaultTheme(theme)) return { error: "Choose a default theme.", values };
   const business = businessSchema.safeParse(values);
   const rates = parseRateRows(values);
+  const liveRates = parseLiveRateFields(values);
   const returnDays = Number(values.core_return_days || "30");
   const daysError = Number.isInteger(returnDays) && returnDays >= 1 && returnDays <= 365 ? null : "Enter a number of days from 1 to 365.";
-  if (!business.success || !rates.ok || daysError) {
+  if (!business.success || !rates.ok || !liveRates.ok || daysError) {
     return {
       error: "Check the highlighted fields.",
       fieldErrors: {
         ...(business.success ? {} : fieldErrors(business.error)),
         ...(rates.ok ? {} : rates.errors),
+        ...(liveRates.ok ? {} : liveRates.errors),
         ...(daysError ? { core_return_days: daysError } : {}),
       },
       values,
@@ -506,6 +515,7 @@ export async function saveSettingsAction(_prev: SettingsState, formData: FormDat
       ...business.data,
       store_enabled: values.store_enabled === "on",
       shipping_rates: rates.rates,
+      ...liveRates.columns,
       core_return_days: returnDays,
       updated_by: staff.id,
     })

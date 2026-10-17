@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { checkoutAction, removeCartLineAction, updateCartLineAction } from "@/app/actions/cart";
+import { checkoutAction, removeCartLineAction, setShipZipAction, updateCartLineAction } from "@/app/actions/cart";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { CONDITION_LABELS } from "@/lib/catalog/types";
 import { CHECKOUT_ERRORS, isCheckoutError } from "@/lib/orders/checkout";
 import { MAX_LINE_QUANTITY } from "@/lib/orders/cart";
 import { formatPercent, nextPriceBreak, priceCart, priceNote } from "@/lib/orders/pricing";
-import { customerPricing, loadBuyableProducts, readCart, storeIsOpen } from "@/lib/orders/store";
+import { liveRatesConfig, quoteShipping } from "@/lib/orders/live-rates";
+import { parseZip, transitText } from "@/lib/orders/shipping";
+import { customerPricing, loadBuyableProducts, readCart, readShipZip, storeIsOpen } from "@/lib/orders/store";
 import { getSignedInUser } from "@/lib/customers/account";
 import { getBusiness, getSiteSettings } from "@/lib/site-settings";
 import { createSessionClient } from "@/lib/supabase/server";
@@ -58,9 +60,33 @@ export default async function CartPage(props: PageProps<"/cart">) {
     ? Math.max(0, terms.credit_limit_cents - (((await (await createSessionClient()).rpc("my_open_balance_cents")).data as number | null) ?? 0))
     : 0;
   const added = cart.lines.find((l) => l.product.slug === one("added"));
-  const canShip = cart.shipping.available;
-  const preferPickup = one("fulfillment") === "pickup" || !canShip;
-  const shipCents = cart.shipping.available ? cart.shipping.cents : null;
+
+  // Shipping: live carrier rates to the customer's ZIP code when they're on,
+  // otherwise the weight bands. Each choice posts as `fulfillment`.
+  const live = cart.lines.length ? await liveRatesConfig() : null;
+  const zip = live ? ((await readShipZip()) ?? parseZip(user?.customer?.ship_postal)) : null;
+  const quote = live ? await quoteShipping(cart, zip ? { postal: zip } : null, live) : null;
+  const shipChoices: { value: string; title: string; detail: string; cents: number }[] = quote
+    ? quote.kind === "options"
+      ? quote.options.map((o) => ({ value: `ship:${o.code}`, title: o.label, detail: transitText(o.days) ?? "Within the US.", cents: o.cents }))
+      : []
+    : cart.shipping.available
+      ? [{ value: "ship", title: "Ship it", detail: "UPS or FedEx ground, within the US.", cents: cart.shipping.cents }]
+      : [];
+  const shipUnavailable = quote
+    ? quote.kind === "blocked"
+      ? quote.reason
+      : quote.kind === "address"
+        ? "Enter your ZIP code above to see shipping options."
+        : null
+    : cart.shipping.available
+      ? null
+      : cart.shipping.reason;
+  const wanted = one("fulfillment");
+  const selected =
+    shipChoices.find((c) => c.value === wanted)?.value ?? (wanted === "pickup" || !shipChoices.length ? "pickup" : shipChoices[0].value);
+  const cheapestShip = shipChoices.length ? Math.min(...shipChoices.map((c) => c.cents)) : null;
+  const accountZip = terms ? parseZip(terms.ship_postal) : null;
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 pt-12 pb-20">
@@ -156,20 +182,61 @@ export default async function CartPage(props: PageProps<"/cart">) {
             })}
           </ul>
 
-          <form action={checkoutAction} className="flex flex-col gap-5 rounded-md border border-edge bg-surface p-6">
+          <div className="flex flex-col gap-4">
+          {live && (
+            <form id="ship-zip" action={setShipZipAction} className="flex flex-col gap-2 rounded-md border border-edge bg-surface p-6">
+              <label htmlFor="zip" className="font-display text-xl font-bold uppercase tracking-[0.04em]">
+                Shipping to
+              </label>
+              <p className="text-sm text-fg-muted">
+                Your ZIP code, for live UPS, FedEx and USPS rates. You’ll enter the full address at checkout.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  id="zip"
+                  name="zip"
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                  maxLength={10}
+                  placeholder="ZIP code"
+                  defaultValue={one("zip_error") ? (one("zip") ?? "") : (zip ?? "")}
+                  aria-invalid={one("zip_error") ? true : undefined}
+                  aria-describedby={one("zip_error") ? "zip-error" : undefined}
+                  className="h-11 w-32 rounded border border-edge-strong bg-surface px-3"
+                />
+                <Button type="submit" variant="dark" size="sm" className="h-11">{zip ? "Update rates" : "Get rates"}</Button>
+              </div>
+              {one("zip_error") && (
+                <p id="zip-error" className="text-sm font-medium text-danger">Enter a 5-digit US ZIP code.</p>
+              )}
+            </form>
+          )}
+          <form id="delivery" action={checkoutAction} className="flex flex-col gap-5 rounded-md border border-edge bg-surface p-6">
             <fieldset className="flex flex-col gap-3">
               <legend className="mb-1 font-display text-xl font-bold uppercase tracking-[0.04em]">Delivery</legend>
-              <label className={`flex gap-3 rounded border border-edge-strong p-3 has-checked:border-bold ${canShip ? "cursor-pointer" : "opacity-60"}`}>
-                <input type="radio" name="fulfillment" value="ship" disabled={!canShip} defaultChecked={!preferPickup} className="mt-1 size-[18px] accent-fg" />
-                <span className="flex flex-col gap-0.5">
-                  <strong>Ship it {shipCents !== null && <>· {money(shipCents)}</>}</strong>
-                  <span className="text-sm text-fg-muted">
-                    {cart.shipping.available ? "UPS or FedEx ground, within the US." : cart.shipping.reason}
+              {shipChoices.map((c) => (
+                <label key={c.value} className="flex cursor-pointer gap-3 rounded border border-edge-strong p-3 has-checked:border-bold">
+                  <input type="radio" name="fulfillment" value={c.value} defaultChecked={selected === c.value} className="mt-1 size-[18px] accent-fg" />
+                  <span className="flex flex-col gap-0.5">
+                    <strong>
+                      {c.title} · {money(c.cents)}
+                    </strong>
+                    <span className="text-sm text-fg-muted">{c.detail}</span>
                   </span>
-                </span>
-              </label>
+                </label>
+              ))}
+              {shipUnavailable && (
+                <label className="flex gap-3 rounded border border-edge-strong p-3 opacity-60">
+                  <input type="radio" name="fulfillment" value="ship" disabled className="mt-1 size-[18px] accent-fg" />
+                  <span className="flex flex-col gap-0.5">
+                    <strong>Ship it</strong>
+                    <span className="text-sm text-fg-muted">{shipUnavailable}</span>
+                  </span>
+                </label>
+              )}
+              {quote?.kind === "options" && quote.notice && <p className="text-sm text-fg-muted">{quote.notice}</p>}
               <label className="flex cursor-pointer gap-3 rounded border border-edge-strong p-3 has-checked:border-bold">
-                <input type="radio" name="fulfillment" value="pickup" defaultChecked={preferPickup} className="mt-1 size-[18px] accent-fg" />
+                <input type="radio" name="fulfillment" value="pickup" defaultChecked={selected === "pickup"} className="mt-1 size-[18px] accent-fg" />
                 <span className="flex flex-col gap-0.5">
                   <strong>Pick up · free</strong>
                   <span className="text-sm text-fg-muted">
@@ -196,6 +263,9 @@ export default async function CartPage(props: PageProps<"/cart">) {
                     <span className="text-sm text-fg-muted">
                       {money(available)} of {money(terms.credit_limit_cents)} credit available. We email an invoice due in 30 days
                       {terms.ship_line1 ? `, and ship to ${terms.ship_line1}, ${terms.ship_city ?? ""}` : ""}.
+                      {live && accountZip && zip !== accountZip && (
+                        <> To ship on account, get rates for your account’s ZIP code, {accountZip}.</>
+                      )}
                     </span>
                   </span>
                 </label>
@@ -215,7 +285,11 @@ export default async function CartPage(props: PageProps<"/cart">) {
               )}
               <div className="flex justify-between gap-4 text-fg-muted">
                 <dt>Shipping</dt>
-                <dd>{canShip && shipCents !== null ? `${money(shipCents)} or free pickup` : "Free pickup"}</dd>
+                <dd>
+                  {cheapestShip === null
+                    ? "Free pickup"
+                    : `${shipChoices.length > 1 ? "From " : ""}${money(cheapestShip)} or free pickup`}
+                </dd>
               </div>
               <div className="flex justify-between gap-4 text-fg-muted">
                 <dt>Sales tax</dt>
@@ -232,6 +306,7 @@ export default async function CartPage(props: PageProps<"/cart">) {
               approved certificate first.
             </p>
           </form>
+          </div>
         </div>
       )}
     </div>

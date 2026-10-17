@@ -40,3 +40,47 @@ export function rateRowValues(rates: ShippingRate[]): Record<string, string> {
     ]),
   );
 }
+
+/** Live shipping rate options on /admin/settings. */
+export const LIVE_RATE_FIELDS = ["live_rates_enabled", "parcel_length", "parcel_width", "parcel_height", "handling_fee"] as const;
+type LiveRateField = (typeof LIVE_RATE_FIELDS)[number];
+
+export interface LiveRateColumns {
+  live_rates_enabled: boolean;
+  parcel_length_in: number;
+  parcel_width_in: number;
+  parcel_height_in: number;
+  handling_cents: number;
+}
+
+export type LiveRateParse = { ok: true; columns: LiveRateColumns } | { ok: false; errors: Partial<Record<LiveRateField, string>> };
+
+/** The switch, the default box (inches, one decimal) and the handling fee added to every live rate. */
+export function parseLiveRateFields(values: Partial<Record<LiveRateField, string>>): LiveRateParse {
+  const errors: Partial<Record<LiveRateField, string>> = {};
+  const inches = (field: "parcel_length" | "parcel_width" | "parcel_height") => {
+    const n = Number((values[field] ?? "").trim());
+    if (!Number.isFinite(n) || n < 1 || n > 108) {
+      errors[field] = "Enter inches from 1 to 108.";
+      return 0;
+    }
+    return Math.round(n * 10) / 10;
+  };
+  const length = inches("parcel_length");
+  const width = inches("parcel_width");
+  const height = inches("parcel_height");
+  const feeText = (values.handling_fee ?? "").trim().replace(/^\$/, "").replace(/,/g, "");
+  const fee = feeText === "" ? 0 : Number(feeText);
+  if (!Number.isFinite(fee) || fee < 0 || fee > 1000) errors.handling_fee = "Enter a fee from $0 to $1,000, e.g. 5 or 7.50.";
+  if (Object.keys(errors).length) return { ok: false, errors };
+  return {
+    ok: true,
+    columns: {
+      live_rates_enabled: values.live_rates_enabled === "on",
+      parcel_length_in: length,
+      parcel_width_in: width,
+      parcel_height_in: height,
+      handling_cents: Math.round(fee * 100),
+    },
+  };
+}

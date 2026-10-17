@@ -4,7 +4,7 @@
 -- Run with `supabase test db`.
 begin;
 create extension if not exists pgtap;
-select plan(62);
+select plan(66);
 
 insert into auth.users (id, email) values
   ('a1000000-0000-4000-8000-000000000001', 'staff@example.invalid'),
@@ -218,6 +218,29 @@ select ok(public.staff_close_order('d1000000-0000-4000-8000-000000000005', 'canc
 reset role;
 select is(pg_temp.stock('c1000000-0000-4000-8000-00000000000a'), '1/0', 'cancelling with restock puts the stock back');
 select is((select total_cents from public.orders where id = 'd1000000-0000-4000-8000-000000000005'), 100, 'staff cannot change an order''s totals');
+
+-- Live shipping rates: the service a customer paid for stays fixed; settings are checked.
+update public.orders set shipping_service = 'UPS Ground', shipping_service_code = 'ups:ups_ground' where id = 'd1000000-0000-4000-8000-000000000005';
+set local role authenticated;
+set local "request.jwt.claims" to '{"sub":"a1000000-0000-4000-8000-000000000001"}';
+update public.orders set shipping_service = 'UPS Next Day Air', shipping_service_code = 'ups:ups_next_day_air' where id = 'd1000000-0000-4000-8000-000000000005';
+select is(
+  (select shipping_service || ' ' || shipping_service_code from public.orders where id = 'd1000000-0000-4000-8000-000000000005'),
+  'UPS Ground ups:ups_ground', 'staff cannot change the shipping service an order was paid for'
+);
+update public.site_settings set live_rates_enabled = true, parcel_length_in = 24, handling_cents = 500 where id = 1;
+select is(
+  (select live_rates_enabled::text || ' ' || parcel_length_in || ' ' || handling_cents from public.site_settings),
+  'true 24.0 500', 'staff switch on live rates and set the box and handling fee'
+);
+select throws_ok(
+  $$update public.site_settings set parcel_height_in = 0 where id = 1$$,
+  '23514', null, 'a box needs real dimensions'
+);
+reset role;
+set local role anon;
+select is((select handling_cents from public.site_settings), 500, 'the shipping settings are public, like the rest of the site settings');
+reset role;
 
 select * from finish();
 rollback;
