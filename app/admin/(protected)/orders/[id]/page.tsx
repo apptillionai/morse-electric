@@ -18,8 +18,12 @@ const PAYMENT = { card: "Card", ach: "Bank transfer (ACH)", net30: "Net-30 invoi
 export default async function OrderPage(props: PageProps<"/admin/orders/[id]">) {
   const { id } = await props.params;
   if (!UUID.test(id)) notFound();
-  const order = await getOrderForStaff(await staffClient(), id);
+  const supabase = await staffClient();
+  const order = await getOrderForStaff(supabase, id);
   if (!order || order.status === "checkout") notFound();
+  const { data: quote } = order.quote_id
+    ? await supabase.from("quotes").select("reference, quote_request_id, service_request_id").eq("id", order.quote_id).maybeSingle()
+    : { data: null };
 
   const steps = NEXT_STEPS[order.status]?.[order.fulfillment] ?? [];
   const closable = ["invoiced", "paid", "processing", "ready_for_pickup", "shipped", "completed"].includes(order.status);
@@ -43,6 +47,14 @@ export default async function OrderPage(props: PageProps<"/admin/orders/[id]">) 
             </Detail>
             <Detail label="Email">{order.email && <a href={`mailto:${order.email}?subject=${encodeURIComponent(`Your Morse Electric order ${order.reference}`)}`}>{order.email}</a>}</Detail>
             <Detail label="Phone">{order.phone && <a href={`tel:${order.phone}`}>{order.phone}</a>}</Detail>
+            {quote && (
+              <Detail label="From quote">
+                <Link href={quote.service_request_id ? `/admin/service/${quote.service_request_id}#quote` : `/admin/quotes/${quote.quote_request_id}#quote`}>
+                  {quote.reference}
+                </Link>
+                {quote.service_request_id ? " (repair)" : ""}
+              </Detail>
+            )}
             <Detail label="Delivery">{order.fulfillment === "pickup" ? "Pickup at the shop" : "Ship"}</Detail>
             <Detail label="Payment">
               {order.payment_method ? PAYMENT[order.payment_method] : null}

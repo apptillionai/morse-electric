@@ -7,6 +7,8 @@ import { TriageForm } from "@/components/admin/triage-form";
 import { getServiceRequest, SERVICE_STATUSES, STATUS_LABELS } from "@/lib/admin/requests";
 import { EQUIPMENT_TYPES } from "@/lib/requests/schemas";
 import { staffClient } from "@/lib/admin/auth";
+import { QuotePanel } from "@/components/admin/quote-panel";
+import { listQuotesFor } from "@/lib/quotes/store";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -15,9 +17,10 @@ export const metadata = { title: "Service job" };
 const yesNo = (v: boolean) => (v ? "Yes" : "No");
 
 export default async function ServiceJobPage(props: PageProps<"/admin/service/[id]">) {
-  const { id } = await props.params;
+  const [{ id }, sp] = await Promise.all([props.params, props.searchParams]);
   if (!UUID.test(id)) notFound();
-  const j = await getServiceRequest(await staffClient(), id);
+  const supabase = await staffClient();
+  const [j, quotes] = await Promise.all([getServiceRequest(supabase, id), listQuotesFor(supabase, { serviceRequestId: id })]);
   if (!j) notFound();
 
   return (
@@ -56,6 +59,18 @@ export default async function ServiceJobPage(props: PageProps<"/admin/service/[i
           statuses={SERVICE_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))}
           status={j.status}
           notes={j.staff_notes ?? ""}
+        />
+      </div>
+      <div className="mt-6">
+        <QuotePanel
+          kind="repair"
+          requestId={j.id}
+          quotes={quotes}
+          notice={{
+            quote: typeof sp.quote === "string" ? sp.quote : undefined,
+            link: typeof sp.link === "string" ? sp.link : undefined,
+            quoteError: typeof sp.quote_error === "string" ? sp.quote_error : undefined,
+          }}
         />
       </div>
     </>

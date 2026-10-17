@@ -15,6 +15,7 @@ const STEP_OF: Record<ServiceStatus, number> = {
   teardown: 1,
   quoted: 2,
   approved: 3,
+  declined: 2,
   in_repair: 3,
   testing: 4,
   ready: 5,
@@ -31,8 +32,9 @@ export function repairStep(status: ServiceStatus): number {
 export const SERVICE_STATUS_MESSAGE: Record<ServiceStatus, string> = {
   received: "We’ve received your request and will be in touch to arrange drop-off or pickup.",
   teardown: "Your unit is in the shop and being inspected.",
-  quoted: "We’ve sent you a repair quote. Reply or call us to approve it.",
+  quoted: "We’ve sent you a repair quote. Approve it online, or call us.",
   approved: "Quote approved. Your repair is scheduled.",
+  declined: "You declined the repair quote. We’ll be in touch about returning your unit.",
   in_repair: "Your unit is being repaired.",
   testing: "Repair done. We’re testing it under load.",
   ready: "Ready for pickup or delivery.",

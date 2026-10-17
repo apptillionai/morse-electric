@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ProductCondition } from "@/lib/catalog/types";
+import { CONDITION_LABELS, type ProductCondition } from "@/lib/catalog/types";
 
 export const ORDER_STATUSES = [
   "checkout", "pending_payment", "invoiced", "paid", "processing", "shipped", "ready_for_pickup", "completed", "cancelled", "refunded",
@@ -32,14 +32,20 @@ export const INVOICE_STATUS_LABELS: Record<string, string> = {
 export interface OrderItem {
   id: string;
   product_id: string | null;
-  sku: string;
+  /** Null for quoted labour or parts outside the catalog. */
+  sku: string | null;
   name: string;
-  condition: ProductCondition;
+  condition: ProductCondition | null;
   unit_price_cents: number;
   /** Per unit; 0 when the item carries no core. */
   core_charge_cents: number;
   quantity: number;
   sort_order: number;
+}
+
+/** "Remanufactured, part # M-1": whichever of the two an item has. */
+export function itemDetails(item: Pick<OrderItem, "condition" | "sku">): string[] {
+  return [item.condition ? CONDITION_LABELS[item.condition] : null, item.sku ? `Part # ${item.sku}` : null].filter((x): x is string => x !== null);
 }
 
 export interface Order {
@@ -64,6 +70,8 @@ export interface Order {
   tax_cents: number;
   total_cents: number;
   payment_method: "card" | "ach" | "net30" | "other" | null;
+  /** Set when the order paid a quote. */
+  quote_id: string | null;
   stripe_checkout_session_id: string | null;
   stripe_payment_intent_id: string | null;
   /** Net-30 orders: the Stripe invoice. */

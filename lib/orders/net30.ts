@@ -2,12 +2,11 @@ import "server-only";
 
 import { after } from "next/server";
 import type Stripe from "stripe";
-import { CONDITION_LABELS } from "@/lib/catalog/types";
 import type { CustomerProfile } from "@/lib/customers/account";
 import { SITE } from "@/lib/site";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CartLine } from "./cart";
-import { openOrder, stripeCustomerFor, type Admin, type CheckoutCustomer, type CheckoutError } from "./checkout";
+import { cartChargeLines, openOrder, stripeCustomerFor, type Admin, type ChargeLine, type CheckoutCustomer, type CheckoutError } from "./checkout";
 import { sendOrderEmails } from "./email";
 import type { Fulfillment } from "./pricing";
 import { getStripe } from "./store";
@@ -52,6 +51,109 @@ async function unwind(stripe: Stripe, supabase: Admin, orderId: string, invoice:
 }
 
 /**
+ * Who a Net-30 order is billed and shipped to, from the customer's profile:
+ * the Stripe customer details and the order's contact and address fields.
+ */
+export function accountBilling(
+  userId: string,
+  profile: CustomerProfile,
+  fulfillment: Fulfillment,
+): { ok: true; customer: CheckoutCustomer; orderFields: Record<string, unknown> } | { ok: false; error: CheckoutError } {
+  if (profile.terms !== "net30") return { ok: false, error: "not_on_terms" };
+  const { ship, bill } = profileAddresses(profile);
+  // An invoice needs an address for tax, and a shipped order needs somewhere to go.
+  if (!bill || (fulfillment === "ship" && !ship)) return { ok: false, error: "no_address" };
+  const shipName = profile.company ?? profile.name;
+  return {
+    ok: true,
+    customer: {
+      id: userId,
+      email: profile.email,
+      name: profile.name,
+      taxExempt: profile.tax_exempt,
+      stripeCustomerId: profile.stripe_customer_id,
+      address: bill,
+      shipping: fulfillment === "ship" && ship ? { ...ship, name: shipName } : null,
+    },
+    orderFields: {
+      phone: profile.phone,
+      ...(fulfillment === "ship" && ship
+        ? {
+            ship_name: shipName,
+            ship_line1: ship.line1,
+            ship_line2: ship.line2,
+            ship_city: ship.city,
+            ship_state: ship.state,
+            ship_postal: ship.postal_code,
+            ship_country: "US",
+          }
+        : {}),
+    },
+  };
+}
+
+/**
+ * Bill a placed Net-30 order: create, finalize and email a Stripe invoice due
+ * in NET30_DAYS, and record it on the order. If anything fails, the invoice
+ * is voided and the order cancelled (restocking a cart order), then the
+ * error is rethrown.
+ */
+export async function invoiceOrder(
+  stripe: Stripe,
+  supabase: Admin,
+  input: { order: { id: string; reference: string }; customer: CheckoutCustomer; lines: ChargeLine[]; shipping: number },
+): Promise<void> {
+  const { order, lines, shipping } = input;
+  let invoice: Stripe.Invoice | null = null;
+  try {
+    const stripeCustomer = await stripeCustomerFor(stripe, supabase, input.customer);
+    const metadata = { order_id: order.id, order_reference: order.reference };
+    invoice = await stripe.invoices.create(
+      {
+        customer: stripeCustomer,
+        collection_method: "send_invoice",
+        days_until_due: NET30_DAYS,
+        automatic_tax: { enabled: true },
+        pending_invoice_items_behavior: "exclude",
+        description: `${SITE.name} order ${order.reference}`,
+        metadata,
+      },
+      { idempotencyKey: `net30-invoice-${order.id}` },
+    );
+    const line = (name: string, unitAmount: number, quantity: number) => ({
+      quantity,
+      price_data: { currency: "usd", unit_amount: unitAmount, tax_behavior: "exclusive" as const, product_data: { name } },
+    });
+    await stripe.invoices.addLines(invoice.id!, {
+      lines: [
+        ...lines.map((l) => line(l.description && !l.core ? `${l.name}, ${l.description}` : l.name, l.unitAmount, l.quantity)),
+        ...(shipping > 0 ? [line("Ground shipping", shipping, 1)] : []),
+      ],
+    });
+    invoice = await stripe.invoices.finalizeInvoice(invoice.id!, { auto_advance: true });
+    invoice = await stripe.invoices.sendInvoice(invoice.id!);
+  } catch (error) {
+    await unwind(stripe, supabase, order.id, invoice);
+    throw error;
+  }
+
+  const charged = lines.reduce((sum, l) => sum + l.unitAmount * l.quantity, 0) + shipping;
+  const dueDate = invoice.due_date ? new Date(invoice.due_date * 1000).toISOString().slice(0, 10) : null;
+  const { error } = await supabase
+    .from("orders")
+    .update({
+      stripe_invoice_id: invoice.id,
+      invoice_url: invoice.hosted_invoice_url ?? null,
+      invoice_due_date: dueDate,
+      total_cents: invoice.total,
+      tax_cents: Math.max(0, invoice.total - charged),
+    })
+    .eq("id", order.id);
+  // The invoice is out; a failed save is logged, not undone.
+  if (error) console.error("[net30] saving invoice on order", order.reference, error.message);
+}
+
+/**
  * Place the cart on the customer's Net-30 account: no Stripe Checkout. The
  * database checks their terms and credit limit (with their account locked)
  * and takes the stock; then a Stripe invoice for the order is created,
@@ -66,39 +168,11 @@ export async function createNet30Order(input: {
 }): Promise<Net30Result> {
   const stripe = getStripe();
   if (!stripe) return { ok: false, error: "unavailable" };
-  if (input.customer.terms !== "net30") return { ok: false, error: "not_on_terms" };
-  const { ship, bill } = profileAddresses(input.customer);
-  // An invoice needs an address for tax, and a shipped order needs somewhere to go.
-  if (!bill || (input.fulfillment === "ship" && !ship)) return { ok: false, error: "no_address" };
-
-  const customer: CheckoutCustomer = {
-    id: input.userId,
-    email: input.customer.email,
-    name: input.customer.name,
-    taxExempt: input.customer.tax_exempt,
-    stripeCustomerId: input.customer.stripe_customer_id,
-    address: bill,
-    shipping: input.fulfillment === "ship" && ship ? { ...ship, name: input.customer.company ?? input.customer.name } : null,
-  };
+  const billing = accountBilling(input.userId, input.customer, input.fulfillment);
+  if (!billing.ok) return billing;
+  const { customer, orderFields } = billing;
   const supabase = createAdminClient();
-  const opened = await openOrder(
-    supabase,
-    { cart: input.cart, fulfillment: input.fulfillment, customer },
-    {
-      phone: input.customer.phone,
-      ...(input.fulfillment === "ship" && ship
-        ? {
-            ship_name: input.customer.company ?? input.customer.name,
-            ship_line1: ship.line1,
-            ship_line2: ship.line2,
-            ship_city: ship.city,
-            ship_state: ship.state,
-            ship_postal: ship.postal_code,
-            ship_country: "US",
-          }
-        : {}),
-    },
-  );
+  const opened = await openOrder(supabase, { cart: input.cart, fulfillment: input.fulfillment, customer }, orderFields);
   if (!opened.ok) return opened;
   const { order, cart, shipping, cancel } = opened;
 
@@ -109,61 +183,10 @@ export async function createNet30Order(input: {
     return { ok: false, error: placed === "over_limit" ? "over_limit" : placed === "not_on_terms" ? "not_on_terms" : "unavailable" };
   }
 
-  let invoice: Stripe.Invoice | null = null;
   try {
-    const stripeCustomer = await stripeCustomerFor(stripe, supabase, customer);
-    const metadata = { order_id: order.id, order_reference: order.reference };
-    invoice = await stripe.invoices.create(
-      {
-        customer: stripeCustomer,
-        collection_method: "send_invoice",
-        days_until_due: NET30_DAYS,
-        automatic_tax: { enabled: true },
-        pending_invoice_items_behavior: "exclude",
-        description: `${SITE.name} order ${order.reference}`,
-        metadata,
-      },
-      { idempotencyKey: `net30-invoice-${order.id}` },
-    );
-    const line = (name: string, unitAmount: number, quantity: number, description?: string) => ({
-      quantity,
-      ...(description ? { description } : {}),
-      price_data: {
-        currency: "usd",
-        unit_amount: unitAmount,
-        tax_behavior: "exclusive" as const,
-        product_data: { name },
-      },
-    });
-    await stripe.invoices.addLines(invoice.id!, {
-      lines: [
-        ...cart.lines.flatMap((l) => [
-          line(`${l.product.name} (${CONDITION_LABELS[l.product.condition]}), part # ${l.product.sku}`, l.product.priceCents ?? 0, l.quantity),
-          ...(l.coreCents > 0
-            ? [line(`Core charge (refundable): ${l.product.name}`, l.product.coreChargeCents ?? 0, l.quantity)]
-            : []),
-        ]),
-        ...(shipping > 0 ? [line("Ground shipping", shipping, 1)] : []),
-      ],
-    });
-    invoice = await stripe.invoices.finalizeInvoice(invoice.id!, { auto_advance: true });
-    invoice = await stripe.invoices.sendInvoice(invoice.id!);
-
-    const dueDate = invoice.due_date ? new Date(invoice.due_date * 1000).toISOString().slice(0, 10) : null;
-    const { error } = await supabase
-      .from("orders")
-      .update({
-        stripe_invoice_id: invoice.id,
-        invoice_url: invoice.hosted_invoice_url ?? null,
-        invoice_due_date: dueDate,
-        total_cents: invoice.total,
-        tax_cents: Math.max(0, invoice.total - (cart.subtotalCents + cart.coreCents + shipping)),
-      })
-      .eq("id", order.id);
-    if (error) console.error("[net30] saving invoice on order", order.reference, error.message);
+    await invoiceOrder(stripe, supabase, { order, customer, lines: cartChargeLines(cart, opened.returnDays), shipping });
   } catch (error) {
     console.error("[net30] invoice for", order.reference, error instanceof Error ? error.message : error);
-    await unwind(stripe, supabase, order.id, invoice);
     return { ok: false, error: "unavailable" };
   }
 

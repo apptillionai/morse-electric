@@ -1,5 +1,4 @@
-import { CONDITION_LABELS } from "@/lib/catalog/types";
-import { CORE_STATUS_LABELS, formatDueDate, shippingLines, type OrderWithItems } from "@/lib/orders/types";
+import { CORE_STATUS_LABELS, formatDueDate, itemDetails, shippingLines, type OrderWithItems } from "@/lib/orders/types";
 import { formatPrice } from "@/lib/utils";
 
 const money = (cents: number) => formatPrice(cents) ?? "";
@@ -17,7 +16,8 @@ export function OrderSummary({ order }: { order: OrderWithItems }) {
               <span className="flex min-w-0 flex-col">
                 <span className="font-semibold">{item.name}</span>
                 <span className="text-sm text-fg-muted">
-                  {CONDITION_LABELS[item.condition]} · <span className="font-mono">Part # {item.sku}</span> · {item.quantity} × {money(item.unit_price_cents)}
+                  {itemDetails(item).map((d) => `${d} · `)}
+                  {item.quantity} × {money(item.unit_price_cents)}
                 </span>
                 {item.core_charge_cents > 0 && (
                   <span className="text-sm text-fg-muted">
