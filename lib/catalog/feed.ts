@@ -1,4 +1,5 @@
 import { shippingRateFor, type ShippingRate } from "@/lib/orders/pricing";
+import { MAX_PARCEL_LB } from "@/lib/orders/shipping";
 import type { ProductCondition, ShipClass } from "./types";
 
 /**
@@ -11,7 +12,10 @@ import type { ProductCondition, ShipClass } from "./types";
  *   - it has a price and no core charge (a core deposit on top would make the
  *     checkout price differ from the listed one);
  *   - it ships by parcel and has a weight inside a shipping band, so the feed
- *     can state the shipping price;
+ *     can state the shipping price. With live carrier rates on (`rates` is
+ *     null) the price depends on the address, so the feed leaves shipping to
+ *     Merchant Center's carrier-calculated rates and only needs the weight to
+ *     fit one parcel;
  *   - it has one of Morse's own photos (stand-in stock photos don't show the
  *     actual unit, which Google requires).
  */
@@ -50,7 +54,8 @@ export interface FeedItem {
   brand: string | null;
   mpn: string | null;
   productType: string | null;
-  shippingPrice: string;
+  /** Null with live rates: Merchant Center works shipping out from the weight. */
+  shippingPrice: string | null;
   shippingWeight: string;
 }
 
@@ -65,17 +70,19 @@ export const GOOGLE_CONDITION: Record<ProductCondition, FeedItem["condition"]> =
 const usd = (cents: number) => `${(cents / 100).toFixed(2)} USD`;
 
 /** Why a product is left out of the feed, or null when it's listed. */
-export function feedExclusion(p: FeedProduct, rates: ShippingRate[]): string | null {
+export function feedExclusion(p: FeedProduct, rates: ShippingRate[] | null): string | null {
   if (p.priceCents === null) return "no price";
   if ((p.coreChargeCents ?? 0) > 0) return "has a core charge";
   if (p.shipClass !== "parcel") return "doesn't ship by parcel";
   if (p.weightLb === null) return "no weight";
-  if (shippingRateFor(p.weightLb, rates) === null) return "too heavy for the shipping bands";
+  if (rates === null ? p.weightLb > MAX_PARCEL_LB : shippingRateFor(p.weightLb, rates) === null) {
+    return rates === null ? "too heavy for one parcel" : "too heavy for the shipping bands";
+  }
   if (!p.imageUrls.length) return "no photo of its own";
   return null;
 }
 
-export function feedItems(products: FeedProduct[], rates: ShippingRate[], siteUrl: string): FeedItem[] {
+export function feedItems(products: FeedProduct[], rates: ShippingRate[] | null, siteUrl: string): FeedItem[] {
   return products.flatMap((p) => {
     if (feedExclusion(p, rates) !== null) return [];
     const [image, ...more] = p.imageUrls;
@@ -93,7 +100,7 @@ export function feedItems(products: FeedProduct[], rates: ShippingRate[], siteUr
         brand: p.brand,
         mpn: p.mfrPartNumber,
         productType: p.categoryName,
-        shippingPrice: usd(shippingRateFor(p.weightLb!, rates)!),
+        shippingPrice: rates === null ? null : usd(shippingRateFor(p.weightLb!, rates)!),
         shippingWeight: `${p.weightLb} lb`,
       },
     ];
@@ -125,7 +132,7 @@ export function renderFeed(items: FeedItem[], channel: { title: string; link: st
       // Without a brand and part number, Google needs to be told there's no identifier.
       i.brand && i.mpn ? "" : tag("g:identifier_exists", "no"),
       tag("g:product_type", i.productType),
-      `<g:shipping><g:country>US</g:country><g:service>Ground</g:service>${tag("g:price", i.shippingPrice)}</g:shipping>`,
+      i.shippingPrice ? `<g:shipping><g:country>US</g:country><g:service>Ground</g:service>${tag("g:price", i.shippingPrice)}</g:shipping>` : "",
       tag("g:shipping_weight", i.shippingWeight),
       "</item>",
     ].join(""),

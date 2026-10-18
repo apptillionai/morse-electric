@@ -48,7 +48,7 @@ export function OrderSummary({ order }: { order: OrderWithItems }) {
             <div className="flex justify-between gap-4"><dt>Core charges (refundable)</dt><dd>{money(order.core_cents)}</dd></div>
           )}
           <div className="flex justify-between gap-4">
-            <dt>{order.fulfillment === "pickup" ? "Pickup" : "Shipping"}</dt>
+            <dt>{order.fulfillment === "pickup" ? "Pickup" : order.shipping_service ? `Shipping (${order.shipping_service})` : "Shipping"}</dt>
             <dd>{order.fulfillment === "pickup" ? "Free" : money(order.shipping_cents)}</dd>
           </div>
           <div className="flex justify-between gap-4"><dt>Tax</dt><dd>{money(order.tax_cents)}</dd></div>

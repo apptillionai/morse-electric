@@ -27,6 +27,14 @@ export default async function SettingsPage() {
           rates: rateRowValues(parseShippingRates(row.shipping_rates)),
           missing: ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"].filter((k) => !process.env[k]),
           coreReturnDays: typeof row.core_return_days === "number" ? row.core_return_days : 30,
+          live: {
+            enabled: row.live_rates_enabled === true,
+            length: String(row.parcel_length_in ?? 18),
+            width: String(row.parcel_width_in ?? 14),
+            height: String(row.parcel_height_in ?? 12),
+            handlingFee: typeof row.handling_cents === "number" && row.handling_cents > 0 ? (row.handling_cents / 100).toFixed(2) : "",
+            keyMissing: !process.env.SHIPPO_API_KEY,
+          },
         }}
       />
     </>

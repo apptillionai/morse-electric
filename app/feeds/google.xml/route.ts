@@ -1,5 +1,6 @@
 import { feedItems, renderFeed } from "@/lib/catalog/feed";
 import { loadFeedProducts } from "@/lib/catalog/feed-source";
+import { liveRatesConfig } from "@/lib/orders/live-rates";
 import { storeIsOpen } from "@/lib/orders/store";
 import { SITE } from "@/lib/site";
 import { getSiteSettings } from "@/lib/site-settings";
@@ -16,8 +17,9 @@ export async function GET() {
   let xml = renderFeed([], channel);
   if (isSupabaseConfigured() && (await storeIsOpen())) {
     try {
-      const [products, { shippingRates }] = await Promise.all([loadFeedProducts(), getSiteSettings()]);
-      xml = renderFeed(feedItems(products, shippingRates, SITE.url), channel);
+      const [products, { shippingRates }, live] = await Promise.all([loadFeedProducts(), getSiteSettings(), liveRatesConfig()]);
+      // With live rates on, Merchant Center's carrier-calculated rates price shipping instead of the bands.
+      xml = renderFeed(feedItems(products, live ? null : shippingRates, SITE.url), channel);
     } catch (error) {
       console.error("[feed]", error instanceof Error ? error.message : error);
       return new Response("Feed unavailable", { status: 503, headers: { "Retry-After": "3600" } });

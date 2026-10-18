@@ -16,6 +16,7 @@ import {
   type ProductDetail,
 } from "@/lib/catalog/types";
 import { onlinePurchaseBlock, shippingRateFor, type ShippingRate } from "@/lib/orders/pricing";
+import { liveRatesConfig } from "@/lib/orders/live-rates";
 import { storeIsOpen } from "@/lib/orders/store";
 import { SITE } from "@/lib/site";
 import { getBusiness, getSiteSettings } from "@/lib/site-settings";
@@ -66,9 +67,10 @@ const FULFILLMENT: Record<ProductDetail["shipClass"], string> = {
   pickup_only: "Available for pickup at our shop.",
 };
 
-function productJsonLd(p: ProductDetail, rates: ShippingRate[]) {
-  // Parcel items with a weight in a shipping band have a known US shipping price.
-  const shipCents = p.shipClass === "parcel" && p.weightLb !== null ? shippingRateFor(p.weightLb, rates) : null;
+function productJsonLd(p: ProductDetail, rates: ShippingRate[] | null) {
+  // Parcel items with a weight in a shipping band have a known US shipping
+  // price. With live rates (null) it depends on the address, so none is given.
+  const shipCents = rates && p.shipClass === "parcel" && p.weightLb !== null ? shippingRateFor(p.weightLb, rates) : null;
   return {
     "@context": "https://schema.org",
     "@type": "Product",
@@ -112,7 +114,7 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
   const category = (await catalog.listCategories()).find((c) => c.slug === product.categorySlug);
   const quoteHref = `/quote?sku=${encodeURIComponent(product.sku)}`;
   const core = formatPrice(product.coreChargeCents);
-  const [business, { shippingRates }] = await Promise.all([getBusiness(), getSiteSettings()]);
+  const [business, { shippingRates }, live] = await Promise.all([getBusiness(), getSiteSettings(), liveRatesConfig()]);
   // Buyable online: the store is open, and the item is priced, in stock, and
   // ships by parcel or is collected (everything else stays quote-only).
   const buyable =
@@ -125,7 +127,7 @@ export default async function ProductPage(props: PageProps<"/products/[slug]">) 
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd(product, shippingRates)).replace(/</g, "\\u003c") }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd(product, live ? null : shippingRates)).replace(/</g, "\\u003c") }}
       />
       <DemoCatalogBanner show={catalog.isDemo} />
       <div className="mx-auto flex max-w-7xl flex-col gap-10 px-6 pt-7 pb-20">
